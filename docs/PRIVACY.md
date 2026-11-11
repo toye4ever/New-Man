@@ -1,25 +1,21 @@
 # Privacy posture
 
-New Man is designed as a local-first product. The current portfolio build keeps Scripture reading state, plans, saved passages, notes, highlights, tasks, and preferences on the device by default.
+This describes the beta source, not a comprehensive production-service privacy policy.
 
-## Current behavior
+## Local data
 
-- Local state is stored with Drift/SQLite and limited compatibility preferences.
-- The default app starts without a cloud account or cloud credentials.
-- Optional Supabase initialization requires explicit build-time public connection values.
-- Licensed NLT access uses a server-side function so the provider key does not ship in the client.
-- Test fixtures are synthetic and contain no user data.
+Reading state, plans, saved Scripture, notes, highlights, tasks, and preferences are stored locally using Drift/SQLite and limited compatibility preferences. The default app starts without a cloud account. The retained Android beta disables backup and includes cloud/device-transfer exclusions; static configuration does not prove behavior on every manufacturer device.
 
-## Public product principles
+The bundled KJV asset contains 20 verses. When the user requests the full KJV, the app downloads it from eBible and stores the recognized text locally. That request contacts the provider and is subject to its service behavior and terms.
 
-- Collect the minimum data needed for a feature.
-- Keep Bible notes and private reflections private by default.
-- Make any future accountability sharing explicit, granular, and revocable.
-- Do not treat accountability as surveillance.
-- Avoid storing ordinary location history; prefer on-device evaluation for future location automations.
-- Add clear export and deletion controls before production launch.
+## Optional and deferred features
 
-## Not yet production-ready
+The source contains optional Supabase initialization using build-time public connection values and historical server-side NLT scaffolding. No credentials are included. These files are not evidence of an enabled or qualified cloud service or additional-translation beta feature.
 
-The repository is a portfolio prototype, not a published privacy policy or a production service. Account, sync, accountability, and location-sharing flows require threat modeling, consent UX, retention rules, and legal review before release.
+Focus/Guard and accountability are deferred. An unfinished Android accessibility test service remains declared. Do not enable it. The developer Guard controller is unavailable through the public release UI; this is not a qualified accessibility feature.
 
+Test fixtures are synthetic. Do not use personal notes or other sensitive records in public bug reports.
+
+## Product principles
+
+Keep private reflections private by default. Any future accountability sharing should be explicit, granular, and revocable. Account, sync, location-sharing, export, deletion, and retention behavior need their own implementation and review before production claims.

@@ -19,12 +19,14 @@ class CreatePlanScreen extends StatefulWidget {
     required this.controller,
     required this.template,
     required this.planToEdit,
+    this.onSaved,
     super.key,
   });
 
   final AppController controller;
   final PlanTemplate? template;
   final ReadingPlan? planToEdit;
+  final VoidCallback? onSaved;
 
   @override
   State<CreatePlanScreen> createState() => _CreatePlanScreenState();
@@ -467,6 +469,8 @@ class _CreatePlanScreenState extends State<CreatePlanScreen> {
         sourceReferences: parsed.references,
         assignments: assignments,
         templateId: editing?.templateId ?? widget.template?.id,
+        lastReadLocation: editing?.lastReadLocation,
+        lastReadAssignmentHint: editing?.lastReadAssignmentHint,
       );
       if (scheduleChanged &&
           !await _confirmSchedulePreview(
@@ -477,6 +481,11 @@ class _CreatePlanScreenState extends State<CreatePlanScreen> {
       }
       await widget.controller.savePlan(plan);
       if (!mounted) return;
+      if (widget.onSaved != null) {
+        widget.onSaved!();
+      } else {
+        Navigator.of(context).maybePop();
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

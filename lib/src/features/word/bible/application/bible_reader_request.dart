@@ -8,6 +8,7 @@ class BibleReaderRequest {
     this.planProgress,
     this.goToTarget,
     this.expandGoTo = false,
+    this.initialChapterIndex = 0,
   }) : references = List<ScriptureReference>.unmodifiable(references);
 
   factory BibleReaderRequest.manual({
@@ -25,10 +26,12 @@ class BibleReaderRequest {
     required BibleTranslation initialTranslation,
     required String planId,
     required int assignmentIndex,
+    int initialChapterIndex = 0,
   }) {
     return BibleReaderRequest(
       references: references,
       initialTranslation: initialTranslation,
+      initialChapterIndex: initialChapterIndex,
       planProgress: PlanReadingProgressTarget(
         planId: planId,
         assignmentIndex: assignmentIndex,
@@ -39,9 +42,11 @@ class BibleReaderRequest {
   final List<ScriptureReference> references;
   final BibleTranslation initialTranslation;
   final PlanReadingProgressTarget? planProgress;
+
   /// A non-persisted verse range to reveal after the containing chapter loads.
   final ScriptureReference? goToTarget;
   final bool expandGoTo;
+  final int initialChapterIndex;
 }
 
 class PlanReadingProgressTarget {

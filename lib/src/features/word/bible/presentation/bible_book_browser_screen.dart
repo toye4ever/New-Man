@@ -9,7 +9,7 @@ import '../domain/bible_books.dart';
 import '../domain/scripture_reference.dart';
 import '../../translations/domain/bible_translation.dart';
 
-class BibleBookBrowserScreen extends StatelessWidget {
+class BibleBookBrowserScreen extends StatefulWidget {
   const BibleBookBrowserScreen({
     required this.controller,
     this.readerBuilder,
@@ -21,34 +21,124 @@ class BibleBookBrowserScreen extends StatelessWidget {
   readerBuilder;
 
   @override
+  State<BibleBookBrowserScreen> createState() => _BibleBookBrowserScreenState();
+}
+
+class _BibleBookBrowserScreenState extends State<BibleBookBrowserScreen> {
+  final _referenceKey = GlobalKey();
+  final _viewportKey = GlobalKey();
+  bool _compactSearch = false;
+  AppController get controller => widget.controller;
+
+  void _updateSearchVisibility() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final control = _referenceKey.currentContext?.findRenderObject();
+      final viewport = _viewportKey.currentContext?.findRenderObject();
+      if (control is! RenderBox || viewport is! RenderBox) return;
+      final bottom = control.localToGlobal(Offset(0, control.size.height)).dy;
+      final hidden = bottom <= viewport.localToGlobal(Offset.zero).dy;
+      if (hidden != _compactSearch) setState(() => _compactSearch = hidden);
+    });
+  }
+
+  void _openReference() {
+    final request = BibleReaderRequest(
+      references: [
+        ScriptureReference(
+          book: controller.lastReaderPosition?.book ?? 'Matthew',
+          startChapter: controller.lastReaderPosition?.chapter ?? 5,
+        ),
+      ],
+      initialTranslation:
+          controller.lastReaderPosition?.translation ??
+          _defaultTranslation(controller),
+      expandGoTo: true,
+    );
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) =>
+            widget.readerBuilder?.call(context, request) ??
+            ReaderScreen(controller: controller, request: request),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ResponsiveContent(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          PageHeader(
-            title: 'Bible',
-            subtitle: 'Choose a book, then select a chapter.',
-            action: OutlinedButton.icon(
-              onPressed: () { final request = BibleReaderRequest(references: [ScriptureReference(book: controller.lastReaderPosition?.book ?? 'Matthew', startChapter: controller.lastReaderPosition?.chapter ?? 5)], initialTranslation: controller.lastReaderPosition?.translation ?? _defaultTranslation(controller), expandGoTo: true); Navigator.of(context).push(MaterialPageRoute<void>(builder: (context) => readerBuilder?.call(context, request) ?? ReaderScreen(controller: controller, request: request))); },
-              icon: const Icon(Icons.edit_outlined),
-              label: const Text('Open a reference'),
+    return Stack(
+      key: _viewportKey,
+      children: [
+        NotificationListener<ScrollNotification>(
+          onNotification: (_) {
+            _updateSearchVisibility();
+            return false;
+          },
+          child: ResponsiveContent(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final action = OutlinedButton.icon(
+                      key: _referenceKey,
+                      onPressed: _openReference,
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('Open a reference'),
+                    );
+                    if (constraints.maxWidth < 600) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Bible',
+                            style: Theme.of(context).textTheme.headlineMedium,
+                          ),
+                          const SizedBox(height: 12),
+                          action,
+                        ],
+                      );
+                    }
+                    return PageHeader(
+                      title: 'Bible',
+                      subtitle: 'Choose a book, then select a chapter.',
+                      action: action,
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+                _BookSection(
+                  title: 'Old Testament',
+                  books: bibleBooks
+                      .where((book) => book.testament == 'OT')
+                      .toList(),
+                  onSelected: (book) => _openBook(context, book),
+                ),
+                const SizedBox(height: 32),
+                _BookSection(
+                  title: 'New Testament',
+                  books: bibleBooks
+                      .where((book) => book.testament == 'NT')
+                      .toList(),
+                  onSelected: (book) => _openBook(context, book),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 24),
-          _BookSection(
-            title: 'Old Testament',
-            books: bibleBooks.where((book) => book.testament == 'OT').toList(),
-            onSelected: (book) => _openBook(context, book),
+        ),
+        if (_compactSearch)
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: SafeArea(
+              child: IconButton.filled(
+                tooltip: 'Search Bible',
+                onPressed: _openReference,
+                icon: const Icon(Icons.search),
+              ),
+            ),
           ),
-          const SizedBox(height: 32),
-          _BookSection(
-            title: 'New Testament',
-            books: bibleBooks.where((book) => book.testament == 'NT').toList(),
-            onSelected: (book) => _openBook(context, book),
-          ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -58,7 +148,7 @@ class BibleBookBrowserScreen extends StatelessWidget {
         builder: (_) => BibleChapterSelectorScreen(
           controller: controller,
           book: book,
-          readerBuilder: readerBuilder,
+          readerBuilder: widget.readerBuilder,
         ),
       ),
     );
@@ -127,7 +217,7 @@ class BibleChapterSelectorScreen extends StatelessWidget {
           controller.lastReaderPosition?.translation ??
           _defaultTranslation(controller),
     );
-    Navigator.of(context).push(
+    Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
         builder: (context) =>
             readerBuilder?.call(context, request) ??

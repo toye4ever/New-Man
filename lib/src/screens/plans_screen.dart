@@ -32,6 +32,21 @@ class PlansScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 28),
+          Text('Saved plans', style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 14),
+          if (controller.plans.isEmpty)
+            const Text('No saved plans yet.')
+          else
+            ...controller.plans.map((plan) => Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: PlanProgressCard(plan: plan, onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => PlanDetailsScreen(
+                  controller: controller, planId: plan.id)),
+              )),
+            )),
+          const SizedBox(height: 20),
+          Text('Common plans', style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 14),
           LayoutBuilder(
             builder: (context, constraints) {
               final columns = constraints.maxWidth >= 900
@@ -62,28 +77,6 @@ class PlansScreen extends StatelessWidget {
               );
             },
           ),
-          const SizedBox(height: 34),
-          Text('Saved plans', style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 14),
-          if (controller.plans.isEmpty)
-            const Text('No saved plans yet.')
-          else
-            ...controller.plans.map(
-              (plan) => Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: PlanProgressCard(
-                  plan: plan,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => PlanDetailsScreen(
-                        controller: controller,
-                        planId: plan.id,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
     );

@@ -1,4 +1,3 @@
-import '../../bible/domain/reference_utils.dart';
 import '../../bible/domain/scripture_reference.dart';
 import 'reading_plan.dart';
 
@@ -106,8 +105,13 @@ class PlanScheduler {
       readingWeekdays: plan.readingWeekdays,
     );
 
-    return <ScheduledReading>[...completed, ...rescheduled]
-      ..sort((left, right) => left.date.compareTo(right.date));
+    return <ScheduledReading>[
+      ...completed,
+      ...preserveCompletion(
+        generated: rescheduled,
+        previous: plan.assignments.where((day) => !day.completed).toList(),
+      ),
+    ]..sort((left, right) => left.date.compareTo(right.date));
   }
 
   /// Regenerates only unfinished assignments. Completed assignments are kept
@@ -123,7 +127,9 @@ class PlanScheduler {
         .where((item) => !item.completed)
         .expand((item) => item.references)
         .toList();
-    if (unfinished.isEmpty) return List<ScheduledReading>.from(plan.assignments);
+    if (unfinished.isEmpty) {
+      return List<ScheduledReading>.from(plan.assignments);
+    }
 
     final generated = generate(
       references: unfinished,
@@ -131,8 +137,13 @@ class PlanScheduler {
       endDate: endDate,
       readingWeekdays: readingWeekdays,
     );
-    return <ScheduledReading>[...completed, ...generated]
-      ..sort((left, right) => left.date.compareTo(right.date));
+    return <ScheduledReading>[
+      ...completed,
+      ...preserveCompletion(
+        generated: generated,
+        previous: plan.assignments.where((day) => !day.completed).toList(),
+      ),
+    ]..sort((left, right) => left.date.compareTo(right.date));
   }
 
   List<ScheduledReading> preserveCompletion({
@@ -140,17 +151,22 @@ class PlanScheduler {
     required List<ScheduledReading> previous,
   }) {
     final completedKeys = previous
-        .where((item) => item.completed)
-        .expand((item) => item.references)
-        .map(ReferenceUtils.key)
+        .expand((item) => item.chapters.where(item.isChapterCompleted))
+        .map(ScheduledReading.chapterKey)
         .toSet();
 
     return generated
         .map(
           (reading) => reading.copyWith(
-            completed: reading.references
-                .map(ReferenceUtils.key)
-                .every(completedKeys.contains),
+            completedChapterKeys: reading.chapters
+                .map(ScheduledReading.chapterKey)
+                .where(completedKeys.contains)
+                .toSet(),
+            completed:
+                reading.chapters.isNotEmpty &&
+                reading.chapters
+                    .map(ScheduledReading.chapterKey)
+                    .every(completedKeys.contains),
           ),
         )
         .toList();

@@ -7,6 +7,7 @@ class Task {
     required DateTime updatedAt,
     DateTime? dueDate,
     DateTime? completedAt,
+    this.timeBlock,
   }) : id = id.trim(),
        title = title.trim(),
        dueDate = dueDate == null
@@ -22,6 +23,7 @@ class Task {
     }
   }
 
+  final TaskTimeBlock? timeBlock;
   final String id;
   final String title;
   final DateTime? dueDate;
@@ -38,8 +40,11 @@ class Task {
     DateTime? completedAt,
     bool clearCompletedAt = false,
     DateTime? updatedAt,
+    TaskTimeBlock? timeBlock,
+    bool clearTimeBlock = false,
   }) => Task(
     id: id,
+    timeBlock: clearTimeBlock ? null : (timeBlock ?? this.timeBlock),
     title: title ?? this.title,
     dueDate: clearDueDate ? null : (dueDate ?? this.dueDate),
     isCompleted: isCompleted ?? this.isCompleted,
@@ -47,6 +52,30 @@ class Task {
     createdAt: createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
+}
+
+class TaskTimeBlock {
+  TaskTimeBlock({
+    required DateTime plannedDate,
+    required this.startMinutesLocal,
+    required this.endMinutesLocal,
+  }) : plannedDate = DateTime(
+         plannedDate.year,
+         plannedDate.month,
+         plannedDate.day,
+       ) {
+    if (plannedDate.year < 1 ||
+        plannedDate.year > 9999 ||
+        startMinutesLocal < 0 ||
+        startMinutesLocal >= endMinutesLocal ||
+        endMinutesLocal > 1440) {
+      throw ArgumentError('Invalid task time block.');
+    }
+  }
+
+  final DateTime plannedDate;
+  final int startMinutesLocal;
+  final int endMinutesLocal;
 }
 
 class DailyPriority {

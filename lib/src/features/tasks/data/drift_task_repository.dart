@@ -13,6 +13,13 @@ class DriftTaskRepository implements TaskRepository {
     dueDate: record.dueDate == null
         ? null
         : localDateFromStorage(record.dueDate!),
+    timeBlock: record.plannedDate == null
+        ? null
+        : TaskTimeBlock(
+            plannedDate: localDateFromStorage(record.plannedDate!),
+            startMinutesLocal: record.startMinutesLocal!,
+            endMinutesLocal: record.endMinutesLocal!,
+          ),
     isCompleted: record.isCompleted,
     completedAt: record.completedAtUtcMicros == null
         ? null

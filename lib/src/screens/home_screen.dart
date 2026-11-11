@@ -162,6 +162,11 @@ class HomeScreen extends StatelessWidget {
   _PlanContinuity? _findPlanContinuity(DateTime today) {
     _PlanContinuity? nearest;
     for (final plan in controller.plans) {
+      final resume = plan.lastReadAssignmentIndex;
+      if (resume != null) {
+        return _PlanContinuity(plan: plan, reading: plan.assignments[resume],
+            assignmentIndex: resume);
+      }
       for (var index = 0; index < plan.assignments.length; index++) {
         final reading = plan.assignments[index];
         if (DateUtils.isSameDay(reading.date, today) && !reading.completed) {
@@ -215,17 +220,9 @@ class _PlanContinuityCard extends StatelessWidget {
             FilledButton.icon(
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => ReaderScreen(
-                    controller: controller,
-                    request: BibleReaderRequest.fromPlanReading(
-                      references: item.reading.references,
-                      initialTranslation: item.reading.effectiveTranslation(
-                        item.plan.defaultTranslation,
-                      ),
-                      planId: item.plan.id,
-                      assignmentIndex: item.assignmentIndex,
-                    ),
-                  ),
+                  builder: (_) => PlanDetailsScreen(controller: controller,
+                    planId: item.plan.id, initialAssignmentIndex:
+                        item.plan.lastReadAssignmentIndex ?? item.assignmentIndex),
                 ),
               ),
               icon: const Icon(Icons.play_arrow),

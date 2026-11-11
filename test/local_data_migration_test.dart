@@ -60,8 +60,8 @@ void main() {
     (await database.select(database.wordTranslationStates).get()).length,
   ];
 
-  test('schema v7 creates approved tables, index, and foreign keys', () async {
-    expect(database.schemaVersion, 7);
+  test('schema v10 creates approved tables, index, and foreign keys', () async {
+    expect(database.schemaVersion, 10);
     final tables = await database
         .customSelect(
           "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
@@ -113,7 +113,7 @@ void main() {
     expect(priorityForeignKeys.single.read<String>('on_delete'), 'CASCADE');
   });
 
-  test('fresh v7 enforces Task and Daily Priority constraints', () async {
+  test('fresh v10 enforces Task and Daily Priority constraints', () async {
     Future<void> insertTask({
       required String id,
       required String title,
@@ -192,7 +192,7 @@ void main() {
   });
 
   test(
-    'fresh v7 Task repository round trips Tasks and ordered priorities',
+    'fresh v10 Task repository round trips Tasks and ordered priorities',
     () async {
       final service = TaskService(
         DriftTaskRepository(TaskDao(database)),

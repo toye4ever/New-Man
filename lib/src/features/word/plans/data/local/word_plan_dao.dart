@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../../../../../core/database/app_database.dart';
@@ -39,6 +40,13 @@ class WordPlanDao {
             date: _parseDate(entry.scheduledDate),
             references: items.map(_scheduleReference).toList(),
             completed: entry.isCompleted,
+            completedChapterKeys: Set<String>.unmodifiable(
+              entry.completedChapterKeysJson == null
+                  ? const <String>[]
+                  : (jsonDecode(entry.completedChapterKeysJson!)
+                            as List<dynamic>)
+                        .cast<String>(),
+            ),
             translationOverride: entry.translationOverrideId == null
                 ? null
                 : BibleTranslation.values.byName(entry.translationOverrideId!),
@@ -63,6 +71,17 @@ class WordPlanDao {
           sourceReferences: sourceRows.map(_sourceReference).toList(),
           assignments: assignments,
           templateId: plan.templateId,
+          lastReadAssignmentHint: plan.lastReadLocationJson == null
+              ? null
+              : (jsonDecode(plan.lastReadLocationJson!)
+                        as Map<String, dynamic>)['assignmentIndex']
+                    as int?,
+          lastReadLocation: plan.lastReadLocationJson == null
+              ? null
+              : ScriptureReference.fromJson(
+                  jsonDecode(plan.lastReadLocationJson!)
+                      as Map<String, dynamic>,
+                ),
         ),
       );
     }
@@ -77,13 +96,31 @@ class WordPlanDao {
           row.id: row.legacyId,
       };
       await _clearPlans();
-      await insertProjected(projection, retainedLegacyIds: legacyIds);
+      await insertProjected(
+        projection,
+        retainedLegacyIds: legacyIds,
+        resumeLocations: {
+          for (final plan in plans) plan.id: plan.lastReadLocation,
+        },
+        resumeAssignmentHints: {
+          for (final plan in plans) plan.id: plan.lastReadAssignmentHint,
+        },
+        chapterProgress: {
+          for (final plan in plans)
+            plan.id: plan.assignments
+                .map((day) => day.completedChapterKeys.toList()..sort())
+                .toList(),
+        },
+      );
     });
   }
 
   Future<void> insertProjected(
     ProjectedWordData data, {
     Map<String, String?> retainedLegacyIds = const {},
+    Map<String, ScriptureReference?> resumeLocations = const {},
+    Map<String, int?> resumeAssignmentHints = const {},
+    Map<String, List<List<String>>> chapterProgress = const {},
   }) async {
     for (var position = 0; position < data.plans.length; position++) {
       final row = data.plans[position];
@@ -102,6 +139,14 @@ class WordPlanDao {
               readingWeekdaysMask: row.readingWeekdaysMask,
               reminderMinutesLocal: row.reminderMinutesLocal,
               templateId: Value(row.templateId),
+              lastReadLocationJson: Value(
+                resumeLocations[row.id] == null
+                    ? null
+                    : jsonEncode({
+                        ...resumeLocations[row.id]!.toJson(),
+                        'assignmentIndex': resumeAssignmentHints[row.id],
+                      }),
+              ),
             ),
           );
     }
@@ -131,6 +176,11 @@ class WordPlanDao {
               position: row.position,
               scheduledDate: row.scheduledDate,
               isCompleted: row.isCompleted,
+              completedChapterKeysJson: Value(
+                chapterProgress[row.planId] == null
+                    ? null
+                    : jsonEncode(chapterProgress[row.planId]![row.position]),
+              ),
               completedAtUtcMicros: Value(row.completedAtUtcMicros),
               translationOverrideId: Value(row.translationOverrideId),
             ),

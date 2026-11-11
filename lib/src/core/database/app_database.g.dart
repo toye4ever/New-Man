@@ -125,6 +125,17 @@ class $BiblePlansTable extends BiblePlans
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _lastReadLocationJsonMeta =
+      const VerificationMeta('lastReadLocationJson');
+  @override
+  late final GeneratedColumn<String> lastReadLocationJson =
+      GeneratedColumn<String>(
+        'last_read_location_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -138,6 +149,7 @@ class $BiblePlansTable extends BiblePlans
     readingWeekdaysMask,
     reminderMinutesLocal,
     templateId,
+    lastReadLocationJson,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -244,6 +256,15 @@ class $BiblePlansTable extends BiblePlans
         templateId.isAcceptableOrUnknown(data['template_id']!, _templateIdMeta),
       );
     }
+    if (data.containsKey('last_read_location_json')) {
+      context.handle(
+        _lastReadLocationJsonMeta,
+        lastReadLocationJson.isAcceptableOrUnknown(
+          data['last_read_location_json']!,
+          _lastReadLocationJsonMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -297,6 +318,10 @@ class $BiblePlansTable extends BiblePlans
         DriftSqlType.string,
         data['${effectivePrefix}template_id'],
       ),
+      lastReadLocationJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_read_location_json'],
+      ),
     );
   }
 
@@ -318,6 +343,7 @@ class BiblePlanRecord extends DataClass implements Insertable<BiblePlanRecord> {
   final int readingWeekdaysMask;
   final int reminderMinutesLocal;
   final String? templateId;
+  final String? lastReadLocationJson;
   const BiblePlanRecord({
     required this.id,
     this.legacyId,
@@ -330,6 +356,7 @@ class BiblePlanRecord extends DataClass implements Insertable<BiblePlanRecord> {
     required this.readingWeekdaysMask,
     required this.reminderMinutesLocal,
     this.templateId,
+    this.lastReadLocationJson,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -348,6 +375,9 @@ class BiblePlanRecord extends DataClass implements Insertable<BiblePlanRecord> {
     map['reminder_minutes_local'] = Variable<int>(reminderMinutesLocal);
     if (!nullToAbsent || templateId != null) {
       map['template_id'] = Variable<String>(templateId);
+    }
+    if (!nullToAbsent || lastReadLocationJson != null) {
+      map['last_read_location_json'] = Variable<String>(lastReadLocationJson);
     }
     return map;
   }
@@ -369,6 +399,9 @@ class BiblePlanRecord extends DataClass implements Insertable<BiblePlanRecord> {
       templateId: templateId == null && nullToAbsent
           ? const Value.absent()
           : Value(templateId),
+      lastReadLocationJson: lastReadLocationJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastReadLocationJson),
     );
   }
 
@@ -395,6 +428,9 @@ class BiblePlanRecord extends DataClass implements Insertable<BiblePlanRecord> {
         json['reminderMinutesLocal'],
       ),
       templateId: serializer.fromJson<String?>(json['templateId']),
+      lastReadLocationJson: serializer.fromJson<String?>(
+        json['lastReadLocationJson'],
+      ),
     );
   }
   @override
@@ -412,6 +448,7 @@ class BiblePlanRecord extends DataClass implements Insertable<BiblePlanRecord> {
       'readingWeekdaysMask': serializer.toJson<int>(readingWeekdaysMask),
       'reminderMinutesLocal': serializer.toJson<int>(reminderMinutesLocal),
       'templateId': serializer.toJson<String?>(templateId),
+      'lastReadLocationJson': serializer.toJson<String?>(lastReadLocationJson),
     };
   }
 
@@ -427,6 +464,7 @@ class BiblePlanRecord extends DataClass implements Insertable<BiblePlanRecord> {
     int? readingWeekdaysMask,
     int? reminderMinutesLocal,
     Value<String?> templateId = const Value.absent(),
+    Value<String?> lastReadLocationJson = const Value.absent(),
   }) => BiblePlanRecord(
     id: id ?? this.id,
     legacyId: legacyId.present ? legacyId.value : this.legacyId,
@@ -439,6 +477,9 @@ class BiblePlanRecord extends DataClass implements Insertable<BiblePlanRecord> {
     readingWeekdaysMask: readingWeekdaysMask ?? this.readingWeekdaysMask,
     reminderMinutesLocal: reminderMinutesLocal ?? this.reminderMinutesLocal,
     templateId: templateId.present ? templateId.value : this.templateId,
+    lastReadLocationJson: lastReadLocationJson.present
+        ? lastReadLocationJson.value
+        : this.lastReadLocationJson,
   );
   BiblePlanRecord copyWithCompanion(BiblePlansCompanion data) {
     return BiblePlanRecord(
@@ -463,6 +504,9 @@ class BiblePlanRecord extends DataClass implements Insertable<BiblePlanRecord> {
       templateId: data.templateId.present
           ? data.templateId.value
           : this.templateId,
+      lastReadLocationJson: data.lastReadLocationJson.present
+          ? data.lastReadLocationJson.value
+          : this.lastReadLocationJson,
     );
   }
 
@@ -479,7 +523,8 @@ class BiblePlanRecord extends DataClass implements Insertable<BiblePlanRecord> {
           ..write('endDate: $endDate, ')
           ..write('readingWeekdaysMask: $readingWeekdaysMask, ')
           ..write('reminderMinutesLocal: $reminderMinutesLocal, ')
-          ..write('templateId: $templateId')
+          ..write('templateId: $templateId, ')
+          ..write('lastReadLocationJson: $lastReadLocationJson')
           ..write(')'))
         .toString();
   }
@@ -497,6 +542,7 @@ class BiblePlanRecord extends DataClass implements Insertable<BiblePlanRecord> {
     readingWeekdaysMask,
     reminderMinutesLocal,
     templateId,
+    lastReadLocationJson,
   );
   @override
   bool operator ==(Object other) =>
@@ -512,7 +558,8 @@ class BiblePlanRecord extends DataClass implements Insertable<BiblePlanRecord> {
           other.endDate == this.endDate &&
           other.readingWeekdaysMask == this.readingWeekdaysMask &&
           other.reminderMinutesLocal == this.reminderMinutesLocal &&
-          other.templateId == this.templateId);
+          other.templateId == this.templateId &&
+          other.lastReadLocationJson == this.lastReadLocationJson);
 }
 
 class BiblePlansCompanion extends UpdateCompanion<BiblePlanRecord> {
@@ -527,6 +574,7 @@ class BiblePlansCompanion extends UpdateCompanion<BiblePlanRecord> {
   final Value<int> readingWeekdaysMask;
   final Value<int> reminderMinutesLocal;
   final Value<String?> templateId;
+  final Value<String?> lastReadLocationJson;
   final Value<int> rowid;
   const BiblePlansCompanion({
     this.id = const Value.absent(),
@@ -540,6 +588,7 @@ class BiblePlansCompanion extends UpdateCompanion<BiblePlanRecord> {
     this.readingWeekdaysMask = const Value.absent(),
     this.reminderMinutesLocal = const Value.absent(),
     this.templateId = const Value.absent(),
+    this.lastReadLocationJson = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   BiblePlansCompanion.insert({
@@ -554,6 +603,7 @@ class BiblePlansCompanion extends UpdateCompanion<BiblePlanRecord> {
     required int readingWeekdaysMask,
     required int reminderMinutesLocal,
     this.templateId = const Value.absent(),
+    this.lastReadLocationJson = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        position = Value(position),
@@ -576,6 +626,7 @@ class BiblePlansCompanion extends UpdateCompanion<BiblePlanRecord> {
     Expression<int>? readingWeekdaysMask,
     Expression<int>? reminderMinutesLocal,
     Expression<String>? templateId,
+    Expression<String>? lastReadLocationJson,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -594,6 +645,8 @@ class BiblePlansCompanion extends UpdateCompanion<BiblePlanRecord> {
       if (reminderMinutesLocal != null)
         'reminder_minutes_local': reminderMinutesLocal,
       if (templateId != null) 'template_id': templateId,
+      if (lastReadLocationJson != null)
+        'last_read_location_json': lastReadLocationJson,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -610,6 +663,7 @@ class BiblePlansCompanion extends UpdateCompanion<BiblePlanRecord> {
     Value<int>? readingWeekdaysMask,
     Value<int>? reminderMinutesLocal,
     Value<String?>? templateId,
+    Value<String?>? lastReadLocationJson,
     Value<int>? rowid,
   }) {
     return BiblePlansCompanion(
@@ -624,6 +678,7 @@ class BiblePlansCompanion extends UpdateCompanion<BiblePlanRecord> {
       readingWeekdaysMask: readingWeekdaysMask ?? this.readingWeekdaysMask,
       reminderMinutesLocal: reminderMinutesLocal ?? this.reminderMinutesLocal,
       templateId: templateId ?? this.templateId,
+      lastReadLocationJson: lastReadLocationJson ?? this.lastReadLocationJson,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -666,6 +721,11 @@ class BiblePlansCompanion extends UpdateCompanion<BiblePlanRecord> {
     if (templateId.present) {
       map['template_id'] = Variable<String>(templateId.value);
     }
+    if (lastReadLocationJson.present) {
+      map['last_read_location_json'] = Variable<String>(
+        lastReadLocationJson.value,
+      );
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -686,6 +746,7 @@ class BiblePlansCompanion extends UpdateCompanion<BiblePlanRecord> {
           ..write('readingWeekdaysMask: $readingWeekdaysMask, ')
           ..write('reminderMinutesLocal: $reminderMinutesLocal, ')
           ..write('templateId: $templateId, ')
+          ..write('lastReadLocationJson: $lastReadLocationJson, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1293,6 +1354,17 @@ class $BiblePlanScheduleEntriesTable extends BiblePlanScheduleEntries
       'CHECK ("is_completed" IN (0, 1))',
     ),
   );
+  static const VerificationMeta _completedChapterKeysJsonMeta =
+      const VerificationMeta('completedChapterKeysJson');
+  @override
+  late final GeneratedColumn<String> completedChapterKeysJson =
+      GeneratedColumn<String>(
+        'completed_chapter_keys_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _completedAtUtcMicrosMeta =
       const VerificationMeta('completedAtUtcMicros');
   @override
@@ -1321,6 +1393,7 @@ class $BiblePlanScheduleEntriesTable extends BiblePlanScheduleEntries
     position,
     scheduledDate,
     isCompleted,
+    completedChapterKeysJson,
     completedAtUtcMicros,
     translationOverrideId,
   ];
@@ -1379,6 +1452,15 @@ class $BiblePlanScheduleEntriesTable extends BiblePlanScheduleEntries
     } else if (isInserting) {
       context.missing(_isCompletedMeta);
     }
+    if (data.containsKey('completed_chapter_keys_json')) {
+      context.handle(
+        _completedChapterKeysJsonMeta,
+        completedChapterKeysJson.isAcceptableOrUnknown(
+          data['completed_chapter_keys_json']!,
+          _completedChapterKeysJsonMeta,
+        ),
+      );
+    }
     if (data.containsKey('completed_at_utc_micros')) {
       context.handle(
         _completedAtUtcMicrosMeta,
@@ -1433,6 +1515,10 @@ class $BiblePlanScheduleEntriesTable extends BiblePlanScheduleEntries
         DriftSqlType.bool,
         data['${effectivePrefix}is_completed'],
       )!,
+      completedChapterKeysJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}completed_chapter_keys_json'],
+      ),
       completedAtUtcMicros: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}completed_at_utc_micros'],
@@ -1457,6 +1543,7 @@ class BiblePlanScheduleEntryRecord extends DataClass
   final int position;
   final String scheduledDate;
   final bool isCompleted;
+  final String? completedChapterKeysJson;
   final int? completedAtUtcMicros;
   final String? translationOverrideId;
   const BiblePlanScheduleEntryRecord({
@@ -1465,6 +1552,7 @@ class BiblePlanScheduleEntryRecord extends DataClass
     required this.position,
     required this.scheduledDate,
     required this.isCompleted,
+    this.completedChapterKeysJson,
     this.completedAtUtcMicros,
     this.translationOverrideId,
   });
@@ -1476,6 +1564,11 @@ class BiblePlanScheduleEntryRecord extends DataClass
     map['position'] = Variable<int>(position);
     map['scheduled_date'] = Variable<String>(scheduledDate);
     map['is_completed'] = Variable<bool>(isCompleted);
+    if (!nullToAbsent || completedChapterKeysJson != null) {
+      map['completed_chapter_keys_json'] = Variable<String>(
+        completedChapterKeysJson,
+      );
+    }
     if (!nullToAbsent || completedAtUtcMicros != null) {
       map['completed_at_utc_micros'] = Variable<int>(completedAtUtcMicros);
     }
@@ -1492,6 +1585,9 @@ class BiblePlanScheduleEntryRecord extends DataClass
       position: Value(position),
       scheduledDate: Value(scheduledDate),
       isCompleted: Value(isCompleted),
+      completedChapterKeysJson: completedChapterKeysJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(completedChapterKeysJson),
       completedAtUtcMicros: completedAtUtcMicros == null && nullToAbsent
           ? const Value.absent()
           : Value(completedAtUtcMicros),
@@ -1512,6 +1608,9 @@ class BiblePlanScheduleEntryRecord extends DataClass
       position: serializer.fromJson<int>(json['position']),
       scheduledDate: serializer.fromJson<String>(json['scheduledDate']),
       isCompleted: serializer.fromJson<bool>(json['isCompleted']),
+      completedChapterKeysJson: serializer.fromJson<String?>(
+        json['completedChapterKeysJson'],
+      ),
       completedAtUtcMicros: serializer.fromJson<int?>(
         json['completedAtUtcMicros'],
       ),
@@ -1529,6 +1628,9 @@ class BiblePlanScheduleEntryRecord extends DataClass
       'position': serializer.toJson<int>(position),
       'scheduledDate': serializer.toJson<String>(scheduledDate),
       'isCompleted': serializer.toJson<bool>(isCompleted),
+      'completedChapterKeysJson': serializer.toJson<String?>(
+        completedChapterKeysJson,
+      ),
       'completedAtUtcMicros': serializer.toJson<int?>(completedAtUtcMicros),
       'translationOverrideId': serializer.toJson<String?>(
         translationOverrideId,
@@ -1542,6 +1644,7 @@ class BiblePlanScheduleEntryRecord extends DataClass
     int? position,
     String? scheduledDate,
     bool? isCompleted,
+    Value<String?> completedChapterKeysJson = const Value.absent(),
     Value<int?> completedAtUtcMicros = const Value.absent(),
     Value<String?> translationOverrideId = const Value.absent(),
   }) => BiblePlanScheduleEntryRecord(
@@ -1550,6 +1653,9 @@ class BiblePlanScheduleEntryRecord extends DataClass
     position: position ?? this.position,
     scheduledDate: scheduledDate ?? this.scheduledDate,
     isCompleted: isCompleted ?? this.isCompleted,
+    completedChapterKeysJson: completedChapterKeysJson.present
+        ? completedChapterKeysJson.value
+        : this.completedChapterKeysJson,
     completedAtUtcMicros: completedAtUtcMicros.present
         ? completedAtUtcMicros.value
         : this.completedAtUtcMicros,
@@ -1570,6 +1676,9 @@ class BiblePlanScheduleEntryRecord extends DataClass
       isCompleted: data.isCompleted.present
           ? data.isCompleted.value
           : this.isCompleted,
+      completedChapterKeysJson: data.completedChapterKeysJson.present
+          ? data.completedChapterKeysJson.value
+          : this.completedChapterKeysJson,
       completedAtUtcMicros: data.completedAtUtcMicros.present
           ? data.completedAtUtcMicros.value
           : this.completedAtUtcMicros,
@@ -1587,6 +1696,7 @@ class BiblePlanScheduleEntryRecord extends DataClass
           ..write('position: $position, ')
           ..write('scheduledDate: $scheduledDate, ')
           ..write('isCompleted: $isCompleted, ')
+          ..write('completedChapterKeysJson: $completedChapterKeysJson, ')
           ..write('completedAtUtcMicros: $completedAtUtcMicros, ')
           ..write('translationOverrideId: $translationOverrideId')
           ..write(')'))
@@ -1600,6 +1710,7 @@ class BiblePlanScheduleEntryRecord extends DataClass
     position,
     scheduledDate,
     isCompleted,
+    completedChapterKeysJson,
     completedAtUtcMicros,
     translationOverrideId,
   );
@@ -1612,6 +1723,7 @@ class BiblePlanScheduleEntryRecord extends DataClass
           other.position == this.position &&
           other.scheduledDate == this.scheduledDate &&
           other.isCompleted == this.isCompleted &&
+          other.completedChapterKeysJson == this.completedChapterKeysJson &&
           other.completedAtUtcMicros == this.completedAtUtcMicros &&
           other.translationOverrideId == this.translationOverrideId);
 }
@@ -1623,6 +1735,7 @@ class BiblePlanScheduleEntriesCompanion
   final Value<int> position;
   final Value<String> scheduledDate;
   final Value<bool> isCompleted;
+  final Value<String?> completedChapterKeysJson;
   final Value<int?> completedAtUtcMicros;
   final Value<String?> translationOverrideId;
   final Value<int> rowid;
@@ -1632,6 +1745,7 @@ class BiblePlanScheduleEntriesCompanion
     this.position = const Value.absent(),
     this.scheduledDate = const Value.absent(),
     this.isCompleted = const Value.absent(),
+    this.completedChapterKeysJson = const Value.absent(),
     this.completedAtUtcMicros = const Value.absent(),
     this.translationOverrideId = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1642,6 +1756,7 @@ class BiblePlanScheduleEntriesCompanion
     required int position,
     required String scheduledDate,
     required bool isCompleted,
+    this.completedChapterKeysJson = const Value.absent(),
     this.completedAtUtcMicros = const Value.absent(),
     this.translationOverrideId = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1656,6 +1771,7 @@ class BiblePlanScheduleEntriesCompanion
     Expression<int>? position,
     Expression<String>? scheduledDate,
     Expression<bool>? isCompleted,
+    Expression<String>? completedChapterKeysJson,
     Expression<int>? completedAtUtcMicros,
     Expression<String>? translationOverrideId,
     Expression<int>? rowid,
@@ -1666,6 +1782,8 @@ class BiblePlanScheduleEntriesCompanion
       if (position != null) 'position': position,
       if (scheduledDate != null) 'scheduled_date': scheduledDate,
       if (isCompleted != null) 'is_completed': isCompleted,
+      if (completedChapterKeysJson != null)
+        'completed_chapter_keys_json': completedChapterKeysJson,
       if (completedAtUtcMicros != null)
         'completed_at_utc_micros': completedAtUtcMicros,
       if (translationOverrideId != null)
@@ -1680,6 +1798,7 @@ class BiblePlanScheduleEntriesCompanion
     Value<int>? position,
     Value<String>? scheduledDate,
     Value<bool>? isCompleted,
+    Value<String?>? completedChapterKeysJson,
     Value<int?>? completedAtUtcMicros,
     Value<String?>? translationOverrideId,
     Value<int>? rowid,
@@ -1690,6 +1809,8 @@ class BiblePlanScheduleEntriesCompanion
       position: position ?? this.position,
       scheduledDate: scheduledDate ?? this.scheduledDate,
       isCompleted: isCompleted ?? this.isCompleted,
+      completedChapterKeysJson:
+          completedChapterKeysJson ?? this.completedChapterKeysJson,
       completedAtUtcMicros: completedAtUtcMicros ?? this.completedAtUtcMicros,
       translationOverrideId:
           translationOverrideId ?? this.translationOverrideId,
@@ -1715,6 +1836,11 @@ class BiblePlanScheduleEntriesCompanion
     if (isCompleted.present) {
       map['is_completed'] = Variable<bool>(isCompleted.value);
     }
+    if (completedChapterKeysJson.present) {
+      map['completed_chapter_keys_json'] = Variable<String>(
+        completedChapterKeysJson.value,
+      );
+    }
     if (completedAtUtcMicros.present) {
       map['completed_at_utc_micros'] = Variable<int>(
         completedAtUtcMicros.value,
@@ -1739,6 +1865,7 @@ class BiblePlanScheduleEntriesCompanion
           ..write('position: $position, ')
           ..write('scheduledDate: $scheduledDate, ')
           ..write('isCompleted: $isCompleted, ')
+          ..write('completedChapterKeysJson: $completedChapterKeysJson, ')
           ..write('completedAtUtcMicros: $completedAtUtcMicros, ')
           ..write('translationOverrideId: $translationOverrideId, ')
           ..write('rowid: $rowid')
@@ -6480,6 +6607,41 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, StoredTaskRecord> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _plannedDateMeta = const VerificationMeta(
+    'plannedDate',
+  );
+  @override
+  late final GeneratedColumn<String> plannedDate = GeneratedColumn<String>(
+    'planned_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _startMinutesLocalMeta = const VerificationMeta(
+    'startMinutesLocal',
+  );
+  @override
+  late final GeneratedColumn<int> startMinutesLocal = GeneratedColumn<int>(
+    'start_minutes_local',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _endMinutesLocalMeta = const VerificationMeta(
+    'endMinutesLocal',
+  );
+  @override
+  late final GeneratedColumn<int> endMinutesLocal = GeneratedColumn<int>(
+    'end_minutes_local',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'NULL CHECK ((planned_date IS NULL AND start_minutes_local IS NULL AND end_minutes_local IS NULL) OR (planned_date IS NOT NULL AND start_minutes_local IS NOT NULL AND end_minutes_local IS NOT NULL AND planned_date GLOB \'[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\' AND substr(planned_date, 1, 4) <> \'0000\' AND date(planned_date, \'+0 days\') IS planned_date AND typeof(start_minutes_local) = \'integer\' AND typeof(end_minutes_local) = \'integer\' AND start_minutes_local >= 0 AND start_minutes_local < end_minutes_local AND end_minutes_local <= 1440))',
+  );
   static const VerificationMeta _isCompletedMeta = const VerificationMeta(
     'isCompleted',
   );
@@ -6529,6 +6691,9 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, StoredTaskRecord> {
     id,
     title,
     dueDate,
+    plannedDate,
+    startMinutesLocal,
+    endMinutesLocal,
     isCompleted,
     completedAtUtcMicros,
     createdAtUtcMicros,
@@ -6563,6 +6728,33 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, StoredTaskRecord> {
       context.handle(
         _dueDateMeta,
         dueDate.isAcceptableOrUnknown(data['due_date']!, _dueDateMeta),
+      );
+    }
+    if (data.containsKey('planned_date')) {
+      context.handle(
+        _plannedDateMeta,
+        plannedDate.isAcceptableOrUnknown(
+          data['planned_date']!,
+          _plannedDateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('start_minutes_local')) {
+      context.handle(
+        _startMinutesLocalMeta,
+        startMinutesLocal.isAcceptableOrUnknown(
+          data['start_minutes_local']!,
+          _startMinutesLocalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('end_minutes_local')) {
+      context.handle(
+        _endMinutesLocalMeta,
+        endMinutesLocal.isAcceptableOrUnknown(
+          data['end_minutes_local']!,
+          _endMinutesLocalMeta,
+        ),
       );
     }
     if (data.containsKey('is_completed')) {
@@ -6628,6 +6820,18 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, StoredTaskRecord> {
         DriftSqlType.string,
         data['${effectivePrefix}due_date'],
       ),
+      plannedDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}planned_date'],
+      ),
+      startMinutesLocal: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_minutes_local'],
+      ),
+      endMinutesLocal: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_minutes_local'],
+      ),
       isCompleted: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_completed'],
@@ -6658,6 +6862,9 @@ class StoredTaskRecord extends DataClass
   final String id;
   final String title;
   final String? dueDate;
+  final String? plannedDate;
+  final int? startMinutesLocal;
+  final int? endMinutesLocal;
   final bool isCompleted;
   final int? completedAtUtcMicros;
   final int createdAtUtcMicros;
@@ -6666,6 +6873,9 @@ class StoredTaskRecord extends DataClass
     required this.id,
     required this.title,
     this.dueDate,
+    this.plannedDate,
+    this.startMinutesLocal,
+    this.endMinutesLocal,
     required this.isCompleted,
     this.completedAtUtcMicros,
     required this.createdAtUtcMicros,
@@ -6678,6 +6888,15 @@ class StoredTaskRecord extends DataClass
     map['title'] = Variable<String>(title);
     if (!nullToAbsent || dueDate != null) {
       map['due_date'] = Variable<String>(dueDate);
+    }
+    if (!nullToAbsent || plannedDate != null) {
+      map['planned_date'] = Variable<String>(plannedDate);
+    }
+    if (!nullToAbsent || startMinutesLocal != null) {
+      map['start_minutes_local'] = Variable<int>(startMinutesLocal);
+    }
+    if (!nullToAbsent || endMinutesLocal != null) {
+      map['end_minutes_local'] = Variable<int>(endMinutesLocal);
     }
     map['is_completed'] = Variable<bool>(isCompleted);
     if (!nullToAbsent || completedAtUtcMicros != null) {
@@ -6695,6 +6914,15 @@ class StoredTaskRecord extends DataClass
       dueDate: dueDate == null && nullToAbsent
           ? const Value.absent()
           : Value(dueDate),
+      plannedDate: plannedDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(plannedDate),
+      startMinutesLocal: startMinutesLocal == null && nullToAbsent
+          ? const Value.absent()
+          : Value(startMinutesLocal),
+      endMinutesLocal: endMinutesLocal == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endMinutesLocal),
       isCompleted: Value(isCompleted),
       completedAtUtcMicros: completedAtUtcMicros == null && nullToAbsent
           ? const Value.absent()
@@ -6713,6 +6941,9 @@ class StoredTaskRecord extends DataClass
       id: serializer.fromJson<String>(json['id']),
       title: serializer.fromJson<String>(json['title']),
       dueDate: serializer.fromJson<String?>(json['dueDate']),
+      plannedDate: serializer.fromJson<String?>(json['plannedDate']),
+      startMinutesLocal: serializer.fromJson<int?>(json['startMinutesLocal']),
+      endMinutesLocal: serializer.fromJson<int?>(json['endMinutesLocal']),
       isCompleted: serializer.fromJson<bool>(json['isCompleted']),
       completedAtUtcMicros: serializer.fromJson<int?>(
         json['completedAtUtcMicros'],
@@ -6728,6 +6959,9 @@ class StoredTaskRecord extends DataClass
       'id': serializer.toJson<String>(id),
       'title': serializer.toJson<String>(title),
       'dueDate': serializer.toJson<String?>(dueDate),
+      'plannedDate': serializer.toJson<String?>(plannedDate),
+      'startMinutesLocal': serializer.toJson<int?>(startMinutesLocal),
+      'endMinutesLocal': serializer.toJson<int?>(endMinutesLocal),
       'isCompleted': serializer.toJson<bool>(isCompleted),
       'completedAtUtcMicros': serializer.toJson<int?>(completedAtUtcMicros),
       'createdAtUtcMicros': serializer.toJson<int>(createdAtUtcMicros),
@@ -6739,6 +6973,9 @@ class StoredTaskRecord extends DataClass
     String? id,
     String? title,
     Value<String?> dueDate = const Value.absent(),
+    Value<String?> plannedDate = const Value.absent(),
+    Value<int?> startMinutesLocal = const Value.absent(),
+    Value<int?> endMinutesLocal = const Value.absent(),
     bool? isCompleted,
     Value<int?> completedAtUtcMicros = const Value.absent(),
     int? createdAtUtcMicros,
@@ -6747,6 +6984,13 @@ class StoredTaskRecord extends DataClass
     id: id ?? this.id,
     title: title ?? this.title,
     dueDate: dueDate.present ? dueDate.value : this.dueDate,
+    plannedDate: plannedDate.present ? plannedDate.value : this.plannedDate,
+    startMinutesLocal: startMinutesLocal.present
+        ? startMinutesLocal.value
+        : this.startMinutesLocal,
+    endMinutesLocal: endMinutesLocal.present
+        ? endMinutesLocal.value
+        : this.endMinutesLocal,
     isCompleted: isCompleted ?? this.isCompleted,
     completedAtUtcMicros: completedAtUtcMicros.present
         ? completedAtUtcMicros.value
@@ -6759,6 +7003,15 @@ class StoredTaskRecord extends DataClass
       id: data.id.present ? data.id.value : this.id,
       title: data.title.present ? data.title.value : this.title,
       dueDate: data.dueDate.present ? data.dueDate.value : this.dueDate,
+      plannedDate: data.plannedDate.present
+          ? data.plannedDate.value
+          : this.plannedDate,
+      startMinutesLocal: data.startMinutesLocal.present
+          ? data.startMinutesLocal.value
+          : this.startMinutesLocal,
+      endMinutesLocal: data.endMinutesLocal.present
+          ? data.endMinutesLocal.value
+          : this.endMinutesLocal,
       isCompleted: data.isCompleted.present
           ? data.isCompleted.value
           : this.isCompleted,
@@ -6780,6 +7033,9 @@ class StoredTaskRecord extends DataClass
           ..write('id: $id, ')
           ..write('title: $title, ')
           ..write('dueDate: $dueDate, ')
+          ..write('plannedDate: $plannedDate, ')
+          ..write('startMinutesLocal: $startMinutesLocal, ')
+          ..write('endMinutesLocal: $endMinutesLocal, ')
           ..write('isCompleted: $isCompleted, ')
           ..write('completedAtUtcMicros: $completedAtUtcMicros, ')
           ..write('createdAtUtcMicros: $createdAtUtcMicros, ')
@@ -6793,6 +7049,9 @@ class StoredTaskRecord extends DataClass
     id,
     title,
     dueDate,
+    plannedDate,
+    startMinutesLocal,
+    endMinutesLocal,
     isCompleted,
     completedAtUtcMicros,
     createdAtUtcMicros,
@@ -6805,6 +7064,9 @@ class StoredTaskRecord extends DataClass
           other.id == this.id &&
           other.title == this.title &&
           other.dueDate == this.dueDate &&
+          other.plannedDate == this.plannedDate &&
+          other.startMinutesLocal == this.startMinutesLocal &&
+          other.endMinutesLocal == this.endMinutesLocal &&
           other.isCompleted == this.isCompleted &&
           other.completedAtUtcMicros == this.completedAtUtcMicros &&
           other.createdAtUtcMicros == this.createdAtUtcMicros &&
@@ -6815,6 +7077,9 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
   final Value<String> id;
   final Value<String> title;
   final Value<String?> dueDate;
+  final Value<String?> plannedDate;
+  final Value<int?> startMinutesLocal;
+  final Value<int?> endMinutesLocal;
   final Value<bool> isCompleted;
   final Value<int?> completedAtUtcMicros;
   final Value<int> createdAtUtcMicros;
@@ -6824,6 +7089,9 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
     this.id = const Value.absent(),
     this.title = const Value.absent(),
     this.dueDate = const Value.absent(),
+    this.plannedDate = const Value.absent(),
+    this.startMinutesLocal = const Value.absent(),
+    this.endMinutesLocal = const Value.absent(),
     this.isCompleted = const Value.absent(),
     this.completedAtUtcMicros = const Value.absent(),
     this.createdAtUtcMicros = const Value.absent(),
@@ -6834,6 +7102,9 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
     required String id,
     required String title,
     this.dueDate = const Value.absent(),
+    this.plannedDate = const Value.absent(),
+    this.startMinutesLocal = const Value.absent(),
+    this.endMinutesLocal = const Value.absent(),
     required bool isCompleted,
     this.completedAtUtcMicros = const Value.absent(),
     required int createdAtUtcMicros,
@@ -6848,6 +7119,9 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
     Expression<String>? id,
     Expression<String>? title,
     Expression<String>? dueDate,
+    Expression<String>? plannedDate,
+    Expression<int>? startMinutesLocal,
+    Expression<int>? endMinutesLocal,
     Expression<bool>? isCompleted,
     Expression<int>? completedAtUtcMicros,
     Expression<int>? createdAtUtcMicros,
@@ -6858,6 +7132,9 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
       if (id != null) 'id': id,
       if (title != null) 'title': title,
       if (dueDate != null) 'due_date': dueDate,
+      if (plannedDate != null) 'planned_date': plannedDate,
+      if (startMinutesLocal != null) 'start_minutes_local': startMinutesLocal,
+      if (endMinutesLocal != null) 'end_minutes_local': endMinutesLocal,
       if (isCompleted != null) 'is_completed': isCompleted,
       if (completedAtUtcMicros != null)
         'completed_at_utc_micros': completedAtUtcMicros,
@@ -6873,6 +7150,9 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
     Value<String>? id,
     Value<String>? title,
     Value<String?>? dueDate,
+    Value<String?>? plannedDate,
+    Value<int?>? startMinutesLocal,
+    Value<int?>? endMinutesLocal,
     Value<bool>? isCompleted,
     Value<int?>? completedAtUtcMicros,
     Value<int>? createdAtUtcMicros,
@@ -6883,6 +7163,9 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
       id: id ?? this.id,
       title: title ?? this.title,
       dueDate: dueDate ?? this.dueDate,
+      plannedDate: plannedDate ?? this.plannedDate,
+      startMinutesLocal: startMinutesLocal ?? this.startMinutesLocal,
+      endMinutesLocal: endMinutesLocal ?? this.endMinutesLocal,
       isCompleted: isCompleted ?? this.isCompleted,
       completedAtUtcMicros: completedAtUtcMicros ?? this.completedAtUtcMicros,
       createdAtUtcMicros: createdAtUtcMicros ?? this.createdAtUtcMicros,
@@ -6902,6 +7185,15 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
     }
     if (dueDate.present) {
       map['due_date'] = Variable<String>(dueDate.value);
+    }
+    if (plannedDate.present) {
+      map['planned_date'] = Variable<String>(plannedDate.value);
+    }
+    if (startMinutesLocal.present) {
+      map['start_minutes_local'] = Variable<int>(startMinutesLocal.value);
+    }
+    if (endMinutesLocal.present) {
+      map['end_minutes_local'] = Variable<int>(endMinutesLocal.value);
     }
     if (isCompleted.present) {
       map['is_completed'] = Variable<bool>(isCompleted.value);
@@ -6929,6 +7221,9 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
           ..write('id: $id, ')
           ..write('title: $title, ')
           ..write('dueDate: $dueDate, ')
+          ..write('plannedDate: $plannedDate, ')
+          ..write('startMinutesLocal: $startMinutesLocal, ')
+          ..write('endMinutesLocal: $endMinutesLocal, ')
           ..write('isCompleted: $isCompleted, ')
           ..write('completedAtUtcMicros: $completedAtUtcMicros, ')
           ..write('createdAtUtcMicros: $createdAtUtcMicros, ')
@@ -7350,6 +7645,7 @@ typedef $$BiblePlansTableCreateCompanionBuilder =
       required int readingWeekdaysMask,
       required int reminderMinutesLocal,
       Value<String?> templateId,
+      Value<String?> lastReadLocationJson,
       Value<int> rowid,
     });
 typedef $$BiblePlansTableUpdateCompanionBuilder =
@@ -7365,6 +7661,7 @@ typedef $$BiblePlansTableUpdateCompanionBuilder =
       Value<int> readingWeekdaysMask,
       Value<int> reminderMinutesLocal,
       Value<String?> templateId,
+      Value<String?> lastReadLocationJson,
       Value<int> rowid,
     });
 
@@ -7487,6 +7784,11 @@ class $$BiblePlansTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get lastReadLocationJson => $composableBuilder(
+    column: $table.lastReadLocationJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
   Expression<bool> biblePlanSourceItemsRefs(
     Expression<bool> Function($$BiblePlanSourceItemsTableFilterComposer f) f,
   ) {
@@ -7603,6 +7905,11 @@ class $$BiblePlansTableOrderingComposer
     column: $table.templateId,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get lastReadLocationJson => $composableBuilder(
+    column: $table.lastReadLocationJson,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$BiblePlansTableAnnotationComposer
@@ -7654,6 +7961,11 @@ class $$BiblePlansTableAnnotationComposer
 
   GeneratedColumn<String> get templateId => $composableBuilder(
     column: $table.templateId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastReadLocationJson => $composableBuilder(
+    column: $table.lastReadLocationJson,
     builder: (column) => column,
   );
 
@@ -7753,6 +8065,7 @@ class $$BiblePlansTableTableManager
                 Value<int> readingWeekdaysMask = const Value.absent(),
                 Value<int> reminderMinutesLocal = const Value.absent(),
                 Value<String?> templateId = const Value.absent(),
+                Value<String?> lastReadLocationJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BiblePlansCompanion(
                 id: id,
@@ -7766,6 +8079,7 @@ class $$BiblePlansTableTableManager
                 readingWeekdaysMask: readingWeekdaysMask,
                 reminderMinutesLocal: reminderMinutesLocal,
                 templateId: templateId,
+                lastReadLocationJson: lastReadLocationJson,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -7781,6 +8095,7 @@ class $$BiblePlansTableTableManager
                 required int readingWeekdaysMask,
                 required int reminderMinutesLocal,
                 Value<String?> templateId = const Value.absent(),
+                Value<String?> lastReadLocationJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BiblePlansCompanion.insert(
                 id: id,
@@ -7794,6 +8109,7 @@ class $$BiblePlansTableTableManager
                 readingWeekdaysMask: readingWeekdaysMask,
                 reminderMinutesLocal: reminderMinutesLocal,
                 templateId: templateId,
+                lastReadLocationJson: lastReadLocationJson,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -8292,6 +8608,7 @@ typedef $$BiblePlanScheduleEntriesTableCreateCompanionBuilder =
       required int position,
       required String scheduledDate,
       required bool isCompleted,
+      Value<String?> completedChapterKeysJson,
       Value<int?> completedAtUtcMicros,
       Value<String?> translationOverrideId,
       Value<int> rowid,
@@ -8303,6 +8620,7 @@ typedef $$BiblePlanScheduleEntriesTableUpdateCompanionBuilder =
       Value<int> position,
       Value<String> scheduledDate,
       Value<bool> isCompleted,
+      Value<String?> completedChapterKeysJson,
       Value<int?> completedAtUtcMicros,
       Value<String?> translationOverrideId,
       Value<int> rowid,
@@ -8398,6 +8716,11 @@ class $$BiblePlanScheduleEntriesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get completedChapterKeysJson => $composableBuilder(
+    column: $table.completedChapterKeysJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<int> get completedAtUtcMicros => $composableBuilder(
     column: $table.completedAtUtcMicros,
     builder: (column) => ColumnFilters(column),
@@ -8487,6 +8810,11 @@ class $$BiblePlanScheduleEntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get completedChapterKeysJson => $composableBuilder(
+    column: $table.completedChapterKeysJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get completedAtUtcMicros => $composableBuilder(
     column: $table.completedAtUtcMicros,
     builder: (column) => ColumnOrderings(column),
@@ -8543,6 +8871,11 @@ class $$BiblePlanScheduleEntriesTableAnnotationComposer
 
   GeneratedColumn<bool> get isCompleted => $composableBuilder(
     column: $table.isCompleted,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get completedChapterKeysJson => $composableBuilder(
+    column: $table.completedChapterKeysJson,
     builder: (column) => column,
   );
 
@@ -8653,6 +8986,7 @@ class $$BiblePlanScheduleEntriesTableTableManager
                 Value<int> position = const Value.absent(),
                 Value<String> scheduledDate = const Value.absent(),
                 Value<bool> isCompleted = const Value.absent(),
+                Value<String?> completedChapterKeysJson = const Value.absent(),
                 Value<int?> completedAtUtcMicros = const Value.absent(),
                 Value<String?> translationOverrideId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -8662,6 +8996,7 @@ class $$BiblePlanScheduleEntriesTableTableManager
                 position: position,
                 scheduledDate: scheduledDate,
                 isCompleted: isCompleted,
+                completedChapterKeysJson: completedChapterKeysJson,
                 completedAtUtcMicros: completedAtUtcMicros,
                 translationOverrideId: translationOverrideId,
                 rowid: rowid,
@@ -8673,6 +9008,7 @@ class $$BiblePlanScheduleEntriesTableTableManager
                 required int position,
                 required String scheduledDate,
                 required bool isCompleted,
+                Value<String?> completedChapterKeysJson = const Value.absent(),
                 Value<int?> completedAtUtcMicros = const Value.absent(),
                 Value<String?> translationOverrideId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -8682,6 +9018,7 @@ class $$BiblePlanScheduleEntriesTableTableManager
                 position: position,
                 scheduledDate: scheduledDate,
                 isCompleted: isCompleted,
+                completedChapterKeysJson: completedChapterKeysJson,
                 completedAtUtcMicros: completedAtUtcMicros,
                 translationOverrideId: translationOverrideId,
                 rowid: rowid,
@@ -11688,6 +12025,9 @@ typedef $$TasksTableCreateCompanionBuilder =
       required String id,
       required String title,
       Value<String?> dueDate,
+      Value<String?> plannedDate,
+      Value<int?> startMinutesLocal,
+      Value<int?> endMinutesLocal,
       required bool isCompleted,
       Value<int?> completedAtUtcMicros,
       required int createdAtUtcMicros,
@@ -11699,6 +12039,9 @@ typedef $$TasksTableUpdateCompanionBuilder =
       Value<String> id,
       Value<String> title,
       Value<String?> dueDate,
+      Value<String?> plannedDate,
+      Value<int?> startMinutesLocal,
+      Value<int?> endMinutesLocal,
       Value<bool> isCompleted,
       Value<int?> completedAtUtcMicros,
       Value<int> createdAtUtcMicros,
@@ -11755,6 +12098,21 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
 
   ColumnFilters<String> get dueDate => $composableBuilder(
     column: $table.dueDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get plannedDate => $composableBuilder(
+    column: $table.plannedDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startMinutesLocal => $composableBuilder(
+    column: $table.startMinutesLocal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endMinutesLocal => $composableBuilder(
+    column: $table.endMinutesLocal,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -11828,6 +12186,21 @@ class $$TasksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get plannedDate => $composableBuilder(
+    column: $table.plannedDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startMinutesLocal => $composableBuilder(
+    column: $table.startMinutesLocal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endMinutesLocal => $composableBuilder(
+    column: $table.endMinutesLocal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isCompleted => $composableBuilder(
     column: $table.isCompleted,
     builder: (column) => ColumnOrderings(column),
@@ -11866,6 +12239,21 @@ class $$TasksTableAnnotationComposer
 
   GeneratedColumn<String> get dueDate =>
       $composableBuilder(column: $table.dueDate, builder: (column) => column);
+
+  GeneratedColumn<String> get plannedDate => $composableBuilder(
+    column: $table.plannedDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get startMinutesLocal => $composableBuilder(
+    column: $table.startMinutesLocal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get endMinutesLocal => $composableBuilder(
+    column: $table.endMinutesLocal,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<bool> get isCompleted => $composableBuilder(
     column: $table.isCompleted,
@@ -11945,6 +12333,9 @@ class $$TasksTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String> title = const Value.absent(),
                 Value<String?> dueDate = const Value.absent(),
+                Value<String?> plannedDate = const Value.absent(),
+                Value<int?> startMinutesLocal = const Value.absent(),
+                Value<int?> endMinutesLocal = const Value.absent(),
                 Value<bool> isCompleted = const Value.absent(),
                 Value<int?> completedAtUtcMicros = const Value.absent(),
                 Value<int> createdAtUtcMicros = const Value.absent(),
@@ -11954,6 +12345,9 @@ class $$TasksTableTableManager
                 id: id,
                 title: title,
                 dueDate: dueDate,
+                plannedDate: plannedDate,
+                startMinutesLocal: startMinutesLocal,
+                endMinutesLocal: endMinutesLocal,
                 isCompleted: isCompleted,
                 completedAtUtcMicros: completedAtUtcMicros,
                 createdAtUtcMicros: createdAtUtcMicros,
@@ -11965,6 +12359,9 @@ class $$TasksTableTableManager
                 required String id,
                 required String title,
                 Value<String?> dueDate = const Value.absent(),
+                Value<String?> plannedDate = const Value.absent(),
+                Value<int?> startMinutesLocal = const Value.absent(),
+                Value<int?> endMinutesLocal = const Value.absent(),
                 required bool isCompleted,
                 Value<int?> completedAtUtcMicros = const Value.absent(),
                 required int createdAtUtcMicros,
@@ -11974,6 +12371,9 @@ class $$TasksTableTableManager
                 id: id,
                 title: title,
                 dueDate: dueDate,
+                plannedDate: plannedDate,
+                startMinutesLocal: startMinutesLocal,
+                endMinutesLocal: endMinutesLocal,
                 isCompleted: isCompleted,
                 completedAtUtcMicros: completedAtUtcMicros,
                 createdAtUtcMicros: createdAtUtcMicros,

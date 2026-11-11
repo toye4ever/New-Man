@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import '../features/settings/application/appearance_preferences_repository.dart';
+import '../features/settings/domain/appearance_preferences.dart';
 
 import '../data/plan_templates.dart';
 import '../models/plan_template.dart';
@@ -10,6 +12,7 @@ import '../features/word/bible/application/reader_state_repository.dart';
 import '../features/word/audio/application/audio_preferences_repository.dart';
 import '../features/word/bible/domain/bible_books.dart';
 import '../features/word/bible/domain/reader_position.dart';
+import '../features/word/bible/domain/scripture_reference.dart';
 import '../features/word/translations/domain/translation_state.dart';
 import '../features/word/plans/domain/schedule_preview.dart';
 import '../features/word/saved_scripture/application/saved_scripture_repository.dart';
@@ -21,24 +24,93 @@ class AppController extends ChangeNotifier {
     ReaderStateRepository? readerStateRepository,
     AudioPreferencesRepository? audioPreferencesRepository,
     SavedScriptureRepository? savedScriptureRepository,
+    AppearancePreferencesRepository? appearanceRepository,
     this.nltOnlineConfigured = false,
   }) : readerStateRepository =
            readerStateRepository ?? VolatileReaderStateRepository(),
        audioPreferencesRepository =
            audioPreferencesRepository ?? VolatileAudioPreferencesRepository(),
        savedScriptureRepository =
-           savedScriptureRepository ?? VolatileSavedScriptureRepository();
+           savedScriptureRepository ?? VolatileSavedScriptureRepository(),
+       appearanceRepository =
+           appearanceRepository ?? VolatileAppearancePreferencesRepository();
 
   final PlanRepository repository;
   final BibleVersionRepository versionRepository;
   final ReaderStateRepository readerStateRepository;
   final AudioPreferencesRepository audioPreferencesRepository;
   final SavedScriptureRepository savedScriptureRepository;
+  final AppearancePreferencesRepository appearanceRepository;
+  AppearancePreferences _appearance = const AppearancePreferences();
+  AppearancePreferences get appearance => _appearance;
+  Future<void> _appearanceWrite = Future<void>.value();
+  int _pendingAppearanceWrites = 0;
+  bool get savingAppearance => _pendingAppearanceWrites > 0;
+
+  Future<void> setAppearance({AppearanceMode? mode, AccentColor? accent}) {
+    _pendingAppearanceWrites++;
+    notifyListeners();
+    final operation = _appearanceWrite
+        .then((_) async {
+          final updated = _appearance.copyWith(mode: mode, accent: accent);
+          await appearanceRepository.save(updated);
+          _appearance = updated;
+        })
+        .whenComplete(() {
+          _pendingAppearanceWrites--;
+          notifyListeners();
+        });
+    _appearanceWrite = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return operation;
+  }
+
   final bool nltOnlineConfigured;
   final List<PlanTemplate> templates = buildPlanTemplates();
   final PlanScheduler _scheduler = PlanScheduler();
 
   List<ReadingPlan> _plans = <ReadingPlan>[];
+  Future<void> _planWrite = Future<void>.value();
+  Future<void> _writePlans(
+    List<ReadingPlan> Function(List<ReadingPlan>) change,
+  ) {
+    final operation = _planWrite.then((_) async {
+      final updated = change(List<ReadingPlan>.from(_plans));
+      await repository.savePlans(updated);
+      _plans = updated;
+      notifyListeners();
+    });
+    _planWrite = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return operation;
+  }
+
+  Future<void> _updatePlan(
+    String id,
+    ReadingPlan Function(ReadingPlan) change,
+  ) => _writePlans((plans) {
+    final index = plans.indexWhere((plan) => plan.id == id);
+    if (index < 0) throw StateError('This plan no longer exists');
+    plans[index] = change(plans[index]);
+    return plans;
+  });
+
+  Future<void> completePlanChapter(
+    String id,
+    int day,
+    ScriptureReference chapter,
+  ) => _updatePlan(id, (plan) {
+    if (day < 0 || day >= plan.assignments.length) {
+      throw RangeError.index(day, plan.assignments);
+    }
+    final assignments = List<ScheduledReading>.from(plan.assignments);
+    assignments[day] = assignments[day].completeChapter(chapter);
+    return plan.copyWith(assignments: assignments);
+  });
   Map<BibleTranslation, TranslationInstallationState>
   _translationInstallations =
       <BibleTranslation, TranslationInstallationState>{};
@@ -60,13 +132,20 @@ class AppController extends ChangeNotifier {
     final position = _lastReaderPosition;
     if (position == null) return null;
     final book = bibleBookByName(position.book);
-    if (book == null || position.chapter < 1 || position.chapter > book.chapterCount) {
+    if (book == null ||
+        position.chapter < 1 ||
+        position.chapter > book.chapterCount) {
       return null;
     }
     return position;
   }
 
   Future<void> load() async {
+    try {
+      _appearance = await appearanceRepository.load();
+    } catch (_) {
+      _appearance = const AppearancePreferences();
+    }
     _plans = await repository.loadPlans();
     final translationState = await versionRepository.loadTranslationState();
     _translationInstallations = Map.of(translationState.installations);
@@ -136,27 +215,51 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> savePlan(ReadingPlan plan) async {
-    _plans = <ReadingPlan>[plan, ..._plans.where((item) => item.id != plan.id)];
-    await repository.savePlans(_plans);
+    await _writePlans(
+      (plans) => <ReadingPlan>[
+        plan,
+        ...plans.where((item) => item.id != plan.id),
+      ],
+    );
     _selectedDestination = 1;
-    _selectedWordDestination = 0;
+    _selectedWordDestination = 1;
     clearCreateSelection();
     notifyListeners();
   }
 
   Future<void> toggleReading(String planId, int assignmentIndex) async {
-    final planIndex = _plans.indexWhere((plan) => plan.id == planId);
-    if (planIndex == -1) return;
+    await _updatePlan(planId, (plan) {
+      final assignments = List<ScheduledReading>.from(plan.assignments);
+      final current = assignments[assignmentIndex];
+      assignments[assignmentIndex] = current.copyWith(
+        completed: !current.completed,
+        completedChapterKeys: const {},
+      );
+      return plan.copyWith(assignments: assignments);
+    });
+  }
 
-    final plan = _plans[planIndex];
-    final assignments = List<ScheduledReading>.from(plan.assignments);
-    final current = assignments[assignmentIndex];
-    assignments[assignmentIndex] = current.copyWith(
-      completed: !current.completed,
-    );
-    _plans[planIndex] = plan.copyWith(assignments: assignments);
-    await repository.savePlans(_plans);
-    notifyListeners();
+  Future<void> recordPlanReading(
+    String planId,
+    int assignmentIndex,
+    ScriptureReference location,
+  ) async {
+    await _updatePlan(planId, (plan) {
+      if (assignmentIndex < 0 || assignmentIndex >= plan.assignments.length) {
+        return plan;
+      }
+      final belongs = plan.assignments[assignmentIndex].references.any(
+        (ref) =>
+            ref.book == location.book &&
+            location.startChapter >= ref.startChapter &&
+            location.startChapter <= ref.resolvedEndChapter,
+      );
+      if (!belongs) return plan;
+      return plan.copyWith(
+        lastReadLocation: location,
+        lastReadAssignmentHint: assignmentIndex,
+      );
+    });
   }
 
   Future<void> setReadingTranslation(
@@ -164,17 +267,13 @@ class AppController extends ChangeNotifier {
     int assignmentIndex,
     BibleTranslation translation,
   ) async {
-    final planIndex = _plans.indexWhere((plan) => plan.id == planId);
-    if (planIndex == -1) return;
-
-    final plan = _plans[planIndex];
-    final assignments = List<ScheduledReading>.from(plan.assignments);
-    assignments[assignmentIndex] = assignments[assignmentIndex].copyWith(
-      translationOverride: translation,
-    );
-    _plans[planIndex] = plan.copyWith(assignments: assignments);
-    await repository.savePlans(_plans);
-    notifyListeners();
+    await _updatePlan(planId, (plan) {
+      final assignments = List<ScheduledReading>.from(plan.assignments);
+      assignments[assignmentIndex] = assignments[assignmentIndex].copyWith(
+        translationOverride: translation,
+      );
+      return plan.copyWith(assignments: assignments);
+    });
   }
 
   Future<void> installTranslation(BibleTranslation translation) async {
@@ -276,15 +375,26 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> applyCatchUpPreview(SchedulePreview preview) async {
-    final index = _plans.indexWhere((plan) => plan.id == preview.planId);
-    if (index == -1) throw ArgumentError('The plan no longer exists.');
-    final plan = _plans[index];
-    if (plan.endDate != preview.targetEndDate) {
-      throw StateError('This plan changed. Preview Catch Me Up again.');
-    }
-    _plans[index] = plan.copyWith(assignments: preview.assignments);
-    await repository.savePlans(_plans);
-    notifyListeners();
+    await _updatePlan(preview.planId, (plan) {
+      if (plan.endDate != preview.targetEndDate) {
+        throw StateError('This plan changed. Preview Catch Me Up again.');
+      }
+      Set<String> completedKeys(List<ScheduledReading> days) => {
+        for (final day in days)
+          for (final chapter in day.chapters)
+            if (day.isChapterCompleted(chapter))
+              ScheduledReading.chapterKey(chapter),
+      };
+      final previewCompletedKeys = completedKeys(preview.assignments);
+      final currentCompletedKeys = completedKeys(plan.assignments);
+      if (previewCompletedKeys.length != currentCompletedKeys.length ||
+          !previewCompletedKeys.containsAll(currentCompletedKeys)) {
+        throw StateError(
+          'Reading progress changed. Preview Catch Me Up again.',
+        );
+      }
+      return plan.copyWith(assignments: preview.assignments);
+    });
   }
 
   /// Compatibility entry point for callers that already explicitly chose to
@@ -295,8 +405,8 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> deletePlan(String planId) async {
-    _plans = _plans.where((plan) => plan.id != planId).toList();
-    await repository.savePlans(_plans);
-    notifyListeners();
+    await _writePlans(
+      (plans) => plans.where((plan) => plan.id != planId).toList(),
+    );
   }
 }
