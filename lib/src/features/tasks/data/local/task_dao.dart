@@ -43,6 +43,13 @@ class TaskDao {
             dueDate: Value(
               task.dueDate == null ? null : localDateStorage(task.dueDate!),
             ),
+            plannedDate: Value(
+              task.timeBlock == null
+                  ? null
+                  : localDateStorage(task.timeBlock!.plannedDate),
+            ),
+            startMinutesLocal: Value(task.timeBlock?.startMinutesLocal),
+            endMinutesLocal: Value(task.timeBlock?.endMinutesLocal),
             isCompleted: task.isCompleted,
             completedAtUtcMicros: Value(
               task.completedAt?.toUtc().microsecondsSinceEpoch,

@@ -1,49 +1,27 @@
 # Architecture
 
-New Man is an incremental Flutter retrofit that keeps a working Scripture planner usable while moving toward feature-oriented boundaries and local-first persistence.
+New Man incrementally extends a Flutter Scripture planner using feature-oriented boundaries and local-first persistence.
 
-## Runtime flow
+The runtime starts in main.dart, optionally initializes Supabase only when public build-time values are supplied, bootstraps local repositories, and opens NewManApp. The top-level areas are Today, Word, Focus, Accountability, and More. Focus and Accountability remain deferred.
 
-```text
-main.dart
-  └─ local bootstrap
-      ├─ Drift database and migration/recovery
-      ├─ application repositories and services
-      └─ NewManApp
-          ├─ Today
-          ├─ Word
-          ├─ Focus (roadmap placeholder)
-          ├─ Accountability (roadmap placeholder)
-          └─ More / settings
-```
+Presentation code composes application services and domain models. Repositories isolate Drift, preferences, provider networking, file import, and platform services. Legacy models/screens/services remain compatibility boundaries.
 
-Within active features, dependencies move inward:
+## Main areas
 
-```text
-presentation → application → domain ← data/platform implementations
-```
+- lib/src/features/word/: Bible navigation, reading plans, translations, saved Scripture, and audio.
+- lib/src/features/tasks/ and lib/src/features/today/: task editing, time blocks, priority, and Today views.
+- lib/src/features/settings/: appearance preferences.
+- lib/src/core/database/: local database, migration, recovery, and generated schema code.
+- lib/src/app/: bootstrap, theme, navigation, and developer-tool policy.
 
-Widgets render state and invoke application services. Domain models hold deterministic rules. Repositories isolate Drift, preferences, network providers, file import, and device services.
+## Persistence and compatibility
 
-## Key boundaries
+Drift/SQLite is the authoritative local store for migrated Word and task state. Schema snapshots v1 through v10 and corresponding migration tests are included. Historical preferences, recovery behavior, and compatibility layers are retained.
 
-- `lib/src/features/word/` owns Bible navigation, reading plans, translation state, saved Scripture, and audio contracts.
-- `lib/src/features/tasks/` owns the task domain, application service, repository contract, and Drift implementation.
-- `lib/src/core/database/` owns the application database, schema upgrades, legacy import, backup, and recovery.
-- `lib/src/app/` owns bootstrap, navigation shell, and theme.
-- Legacy folders under `lib/src/models`, `screens`, and `services` remain compatibility seams while the migration is completed incrementally.
+The Android beta application ID is com.newman.newmanapp.beta. It is separate from production and does not automatically inherit production data. This source snapshot preserves the retained beta build configuration. Existing Windows runner files are preserved without a new platform-qualification claim.
 
-## Persistence
+## External services and deferred work
 
-Drift/SQLite is the authoritative local store for migrated Word state and task foundations. The repository includes committed schema snapshots from v1 through v7 and migration tests that exercise upgrades, rollback, retry, and preservation of existing data.
+KJV is downloaded directly from eBible on request. Optional Supabase and server-side NLT scaffolding are retained as source, not qualified beta services. The Android Guard service and developer code are retained but are not a public release feature.
 
-Legacy SharedPreferences keys and application identifiers are intentionally retained where changing them would orphan existing local data.
-
-## External services
-
-The default experience is usable without cloud configuration. Supabase initialization is optional and only occurs when public connection values are supplied with Dart defines. The included Edge Function keeps the licensed NLT provider key on the server; no provider credential is committed or expected in the Flutter client.
-
-## Testing strategy
-
-The suite covers deterministic Bible navigation, reference parsing, plan scheduling, repository behavior, schema migration, task persistence, widget flows, reader behavior, translation handling, and Windows text-to-speech smoke behavior.
-
+Tests cover deterministic navigation, parsing, scheduling, persistence/migrations, tasks, selected widget flows, reader state, and translation handling. See the build and beta-testing documents for verification limits.

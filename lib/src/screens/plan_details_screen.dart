@@ -7,15 +7,69 @@ import '../features/word/bible/application/bible_reader_request.dart';
 import 'create_plan_screen.dart';
 import 'reader_screen.dart';
 
-class PlanDetailsScreen extends StatelessWidget {
+class PlanDetailsScreen extends StatefulWidget {
   const PlanDetailsScreen({
     required this.controller,
     required this.planId,
+    this.initialAssignmentIndex,
     super.key,
   });
 
   final AppController controller;
   final String planId;
+  final int? initialAssignmentIndex;
+
+  @override
+  State<PlanDetailsScreen> createState() => _PlanDetailsScreenState();
+}
+
+class _PlanDetailsScreenState extends State<PlanDetailsScreen> {
+  final _scroll = ScrollController();
+  final _summaryKey = GlobalKey();
+  bool _initialScrollScheduled = false;
+  AppController get controller => widget.controller;
+  String get planId => widget.planId;
+  double _rowExtent = 112;
+  double _summaryHeight = 0;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _jumpTo(int index, {bool animate = true}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scroll.hasClients) return;
+      final box = _summaryKey.currentContext?.findRenderObject();
+      if (box is RenderBox) _summaryHeight = box.size.height;
+      final plan = controller.plans.where((p) => p.id == planId).firstOrNull;
+      final preceding = plan == null
+          ? index * _rowExtent
+          : plan.assignments
+                .take(index)
+                .fold<double>(
+                  0,
+                  (sum, day) =>
+                      sum +
+                      _rowExtent +
+                      day.chapters.length * 56 * (_rowExtent / 112),
+                );
+      final offset = (_summaryHeight + preceding).clamp(
+        0.0,
+        _scroll.position.maxScrollExtent,
+      );
+      if (animate) {
+        _scroll.animateTo(
+          offset,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      } else {
+        _scroll.jumpTo(offset);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,17 +85,28 @@ class PlanDetailsScreen extends StatelessWidget {
           );
         }
 
+        _rowExtent =
+            112 * MediaQuery.textScalerOf(context).scale(1).clamp(1, 2.5);
+        if (!_initialScrollScheduled) {
+          _initialScrollScheduled = true;
+          final target = widget.initialAssignmentIndex;
+          if (target != null && plan.assignments.isNotEmpty) {
+            _jumpTo(
+              target.clamp(0, plan.assignments.length - 1),
+              animate: false,
+            );
+          }
+        }
+
         return Scaffold(
           appBar: AppBar(
             title: Text(plan.title),
             actions: <Widget>[
-              IconButton(
-                tooltip: 'Edit entire plan',
-                onPressed: () {
-                  controller.beginEditPlan(plan);
-                  _openEditor(context, controller);
-                },
-                icon: const Icon(Icons.edit_outlined),
+              TextButton(
+                onPressed: plan.assignments.isEmpty
+                    ? null
+                    : () => _jumpTo(plan.progressAssignmentIndex),
+                child: const Text('Return to progress'),
               ),
               IconButton(
                 tooltip: 'Delete plan',
@@ -50,57 +115,142 @@ class PlanDetailsScreen extends StatelessWidget {
               ),
             ],
           ),
-          body: ListView.separated(
-            padding: const EdgeInsets.all(20),
-            itemCount: plan.assignments.length + 1,
-            separatorBuilder: (_, _) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              if (index == 0) {
-                return _PlanSummary(
-                  plan: plan,
-                  onCatchUp: () => _catchUp(context, plan),
-                  onEdit: () {
-                    controller.beginEditPlan(plan);
-                    _openEditor(context, controller);
-                  },
-                );
-              }
-              final assignmentIndex = index - 1;
-              final reading = plan.assignments[assignmentIndex];
-              final translation = reading.effectiveTranslation(
-                plan.defaultTranslation,
-              );
-              return Card(
-                child: ListTile(
-                  leading: Checkbox(
-                    value: reading.completed,
-                    onChanged: (_) =>
-                        controller.toggleReading(plan.id, assignmentIndex),
-                  ),
-                  title: Text(
-                    reading.references.map((item) => item.display).join(', '),
-                  ),
-                  subtitle: Text(
-                    '${DateFormat.yMMMd().format(reading.date)} • '
-                    '${translation.shortLabel}',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => ReaderScreen(
-                        controller: controller,
-                        request: BibleReaderRequest.fromPlanReading(
-                          references: reading.references,
-                          initialTranslation: translation,
-                          planId: plan.id,
-                          assignmentIndex: assignmentIndex,
-                        ),
-                      ),
-                    ),
+          body: CustomScrollView(
+            controller: _scroll,
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  key: _summaryKey,
+                  padding: const EdgeInsets.all(20),
+                  child: _PlanSummary(
+                    plan: plan,
+                    onCatchUp: () => _catchUp(context, plan),
+                    onEdit: () {
+                      controller.beginEditPlan(plan);
+                      _openEditor(context, controller);
+                    },
                   ),
                 ),
-              );
-            },
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                sliver: SliverVariedExtentList(
+                  itemExtentBuilder: (index, _) =>
+                      _rowExtent +
+                      plan.assignments[index].chapters.length *
+                          56 *
+                          (_rowExtent / 112),
+                  delegate: SliverChildBuilderDelegate((
+                    context,
+                    assignmentIndex,
+                  ) {
+                    final reading = plan.assignments[assignmentIndex];
+                    final translation = reading.effectiveTranslation(
+                      plan.defaultTranslation,
+                    );
+                    return Card(
+                      key: ValueKey('plan-day-$assignmentIndex'),
+                      child: Column(
+                        children: [
+                          ListTile(
+                            leading: Checkbox(
+                              value: reading.completed,
+                              onChanged: (_) async {
+                                try {
+                                  await controller.toggleReading(
+                                    plan.id,
+                                    assignmentIndex,
+                                  );
+                                } catch (_) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Could not save reading progress. Please retry.',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                            ),
+                            title: Text(
+                              'Day ${assignmentIndex + 1}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              '${reading.completedChapterCount}/${reading.chapters.length} chapters · ${DateFormat.yMMMd().format(reading.date)} • '
+                              '${translation.shortLabel}',
+                            ),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => ReaderScreen(
+                                  controller: controller,
+                                  request: BibleReaderRequest.fromPlanReading(
+                                    references: reading.references,
+                                    initialTranslation: translation,
+                                    planId: plan.id,
+                                    assignmentIndex: assignmentIndex,
+                                    initialChapterIndex: plan
+                                        .readingStartChapterIndex(
+                                          assignmentIndex,
+                                        ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          LinearProgressIndicator(
+                            value: reading.chapters.isEmpty
+                                ? 0
+                                : reading.completedChapterCount /
+                                      reading.chapters.length,
+                          ),
+                          for (
+                            var chapterIndex = 0;
+                            chapterIndex < reading.chapters.length;
+                            chapterIndex++
+                          )
+                            ListTile(
+                              dense: true,
+                              minTileHeight: 56 * (_rowExtent / 112),
+                              title: Text(
+                                reading.chapters[chapterIndex].display,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: Icon(
+                                reading.isChapterCompleted(
+                                      reading.chapters[chapterIndex],
+                                    )
+                                    ? Icons.check
+                                    : Icons.chevron_right,
+                              ),
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => ReaderScreen(
+                                    controller: controller,
+                                    request: BibleReaderRequest.fromPlanReading(
+                                      references: reading.references,
+                                      initialTranslation: translation,
+                                      planId: plan.id,
+                                      assignmentIndex: assignmentIndex,
+                                      initialChapterIndex: chapterIndex,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  }, childCount: plan.assignments.length),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 20)),
+            ],
           ),
         );
       },
@@ -116,6 +266,10 @@ class PlanDetailsScreen extends StatelessWidget {
             controller: controller,
             template: controller.templateToCreate,
             planToEdit: controller.planToEdit,
+            onSaved: () {
+              Navigator.of(context).pop(); // Editor.
+              Navigator.of(context).pop(); // Details, back to Plans.
+            },
           ),
         ),
       ),
@@ -233,6 +387,9 @@ class _PlanSummary extends StatelessWidget {
                 ),
                 Text(
                   '${plan.completedCount}/${plan.assignments.length} complete',
+                ),
+                Text(
+                  '${plan.completedChapterCount}/${plan.totalChapterCount} chapters',
                 ),
               ],
             ),

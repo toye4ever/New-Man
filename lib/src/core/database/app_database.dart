@@ -20,6 +20,7 @@ class BiblePlans extends Table {
   IntColumn get readingWeekdaysMask => integer()();
   IntColumn get reminderMinutesLocal => integer()();
   TextColumn get templateId => text().nullable()();
+  TextColumn get lastReadLocationJson => text().nullable()();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -80,6 +81,7 @@ class BiblePlanScheduleEntries extends Table {
   IntColumn get position => integer()();
   TextColumn get scheduledDate => text()();
   BoolColumn get isCompleted => boolean()();
+  TextColumn get completedChapterKeysJson => text().nullable()();
   IntColumn get completedAtUtcMicros => integer().nullable()();
   TextColumn get translationOverrideId => text().nullable()();
 
@@ -209,7 +211,7 @@ class WordAudioPreferences extends Table {
   @override
   List<String> get customConstraints => [
     "CHECK (id = 'reader')",
-    'CHECK (playback_rate BETWEEN 0.35 AND 0.65)',
+    'CHECK (playback_rate BETWEEN 0.25 AND 0.85)',
   ];
 }
 
@@ -281,16 +283,28 @@ class WordScriptureNotes extends Table {
 
 @DataClassName('WordScriptureNoteAnchorRecord')
 class WordScriptureNoteAnchors extends Table {
-  TextColumn get noteId => text().references(WordScriptureNotes, #id, onDelete: KeyAction.cascade)();
+  TextColumn get noteId =>
+      text().references(WordScriptureNotes, #id, onDelete: KeyAction.cascade)();
   IntColumn get ordinal => integer()();
   TextColumn get anchorKey => text()();
   TextColumn get book => text()();
   IntColumn get chapter => integer()();
   IntColumn get startVerse => integer().nullable()();
   IntColumn get endVerse => integer().nullable()();
-  @override Set<Column<Object>> get primaryKey => {noteId, ordinal};
-  @override List<Set<Column<Object>>> get uniqueKeys => [{noteId, anchorKey}];
-  @override List<String> get customConstraints => ['CHECK (length(trim(book)) > 0)', 'CHECK (chapter > 0)', 'CHECK (start_verse IS NULL OR start_verse > 0)', 'CHECK (end_verse IS NULL OR end_verse > 0)', 'CHECK (start_verse IS NULL OR end_verse IS NULL OR end_verse >= start_verse)'];
+  @override
+  Set<Column<Object>> get primaryKey => {noteId, ordinal};
+  @override
+  List<Set<Column<Object>>> get uniqueKeys => [
+    {noteId, anchorKey},
+  ];
+  @override
+  List<String> get customConstraints => [
+    'CHECK (length(trim(book)) > 0)',
+    'CHECK (chapter > 0)',
+    'CHECK (start_verse IS NULL OR start_verse > 0)',
+    'CHECK (end_verse IS NULL OR end_verse > 0)',
+    'CHECK (start_verse IS NULL OR end_verse IS NULL OR end_verse >= start_verse)',
+  ];
 }
 
 @DataClassName('WordReadingHistoryRecord')
@@ -319,6 +333,11 @@ class Tasks extends Table {
   TextColumn get id => text()();
   TextColumn get title => text()();
   TextColumn get dueDate => text().nullable()();
+  TextColumn get plannedDate => text().nullable()();
+  IntColumn get startMinutesLocal => integer().nullable()();
+  IntColumn get endMinutesLocal => integer().nullable().customConstraint(
+    "NULL CHECK ((planned_date IS NULL AND start_minutes_local IS NULL AND end_minutes_local IS NULL) OR (planned_date IS NOT NULL AND start_minutes_local IS NOT NULL AND end_minutes_local IS NOT NULL AND planned_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND substr(planned_date, 1, 4) <> '0000' AND date(planned_date, '+0 days') IS planned_date AND typeof(start_minutes_local) = 'integer' AND typeof(end_minutes_local) = 'integer' AND start_minutes_local >= 0 AND start_minutes_local < end_minutes_local AND end_minutes_local <= 1440))",
+  )();
   BoolColumn get isCompleted => boolean()();
   IntColumn get completedAtUtcMicros => integer().nullable()();
   IntColumn get createdAtUtcMicros => integer()();
@@ -386,78 +405,114 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.open() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (migrator) async => migrator.createAll(),
     onUpgrade: (migrator, from, to) async {
-      if (from < 2) {
-        await migrator.createTable(wordReaderStates);
-        await customStatement(
-          'UPDATE local_migration_metadata '
-          'SET target_schema_version = 2 '
-          "WHERE migration_id = 'word_shared_preferences_v1_to_local_v1' "
-          "AND state = 'completed'",
-        );
-      }
-      if (from < 3) {
-        await migrator.alterTable(
-          TableMigration(
-            wordTranslationStates,
-            columnTransformer: {
-              wordTranslationStates.failureCode: const Constant(null),
-              wordTranslationStates.downloadProgressPermille: const Constant(
-                null,
-              ),
-            },
-          ),
-        );
-        await customStatement(
-          'UPDATE local_migration_metadata '
-          'SET target_schema_version = 3 '
-          "WHERE migration_id = 'word_shared_preferences_v1_to_local_v1' "
-          "AND state = 'completed'",
-        );
-      }
-      if (from < 4) {
-        await migrator.createTable(wordAudioPreferences);
-        await customStatement(
-          'UPDATE local_migration_metadata '
-          'SET target_schema_version = 4 '
-          "WHERE migration_id = 'word_shared_preferences_v1_to_local_v1' "
-          "AND state = 'completed'",
-        );
-      }
-      if (from < 5) {
-        await migrator.createTable(wordScriptureBookmarks);
-        await migrator.createTable(wordScriptureHighlights);
-        await migrator.createTable(wordScriptureNotes);
-        await migrator.createTable(wordReadingHistory);
-        await customStatement(
-          'UPDATE local_migration_metadata '
-          'SET target_schema_version = 5 '
-          "WHERE migration_id = 'word_shared_preferences_v1_to_local_v1' "
-          "AND state = 'completed'",
-        );
-      }
-      if (from < 6) {
-        await migrator.createTable(wordScriptureNoteAnchors);
-        await customStatement('INSERT INTO word_scripture_note_anchors (note_id, ordinal, anchor_key, book, chapter, start_verse, end_verse) SELECT id, 0, anchor_key, book, chapter, start_verse, end_verse FROM word_scripture_notes');
-        await customStatement('UPDATE local_migration_metadata SET target_schema_version = 6 WHERE migration_id = \'word_shared_preferences_v1_to_local_v1\' AND state = \'completed\'');
-      }
-      if (from < 7) {
-        await migrator.createTable(tasks);
-        await migrator.createIndex(idxTasksOpenDueDate);
-        await migrator.createTable(dailyPriorityTasks);
-        await migrator.createIndex(idxDailyPriorityTasksDatePosition);
-        await customStatement(
-          'UPDATE local_migration_metadata '
-          'SET target_schema_version = 7 '
-          "WHERE migration_id = 'word_shared_preferences_v1_to_local_v1' "
-          "AND state = 'completed'",
-        );
-      }
+      await transaction(() async {
+        if (from < 2) {
+          await migrator.createTable(wordReaderStates);
+          await customStatement(
+            'UPDATE local_migration_metadata '
+            'SET target_schema_version = 2 '
+            "WHERE migration_id = 'word_shared_preferences_v1_to_local_v1' "
+            "AND state = 'completed'",
+          );
+        }
+        if (from < 3) {
+          await migrator.alterTable(
+            TableMigration(
+              wordTranslationStates,
+              columnTransformer: {
+                wordTranslationStates.failureCode: const Constant(null),
+                wordTranslationStates.downloadProgressPermille: const Constant(
+                  null,
+                ),
+              },
+            ),
+          );
+          await customStatement(
+            'UPDATE local_migration_metadata '
+            'SET target_schema_version = 3 '
+            "WHERE migration_id = 'word_shared_preferences_v1_to_local_v1' "
+            "AND state = 'completed'",
+          );
+        }
+        if (from < 4) {
+          await migrator.createTable(wordAudioPreferences);
+          await customStatement(
+            'UPDATE local_migration_metadata '
+            'SET target_schema_version = 4 '
+            "WHERE migration_id = 'word_shared_preferences_v1_to_local_v1' "
+            "AND state = 'completed'",
+          );
+        }
+        if (from < 5) {
+          await migrator.createTable(wordScriptureBookmarks);
+          await migrator.createTable(wordScriptureHighlights);
+          await migrator.createTable(wordScriptureNotes);
+          await migrator.createTable(wordReadingHistory);
+          await customStatement(
+            'UPDATE local_migration_metadata '
+            'SET target_schema_version = 5 '
+            "WHERE migration_id = 'word_shared_preferences_v1_to_local_v1' "
+            "AND state = 'completed'",
+          );
+        }
+        if (from < 6) {
+          await migrator.createTable(wordScriptureNoteAnchors);
+          await customStatement(
+            'INSERT INTO word_scripture_note_anchors (note_id, ordinal, anchor_key, book, chapter, start_verse, end_verse) SELECT id, 0, anchor_key, book, chapter, start_verse, end_verse FROM word_scripture_notes',
+          );
+          await customStatement(
+            'UPDATE local_migration_metadata SET target_schema_version = 6 WHERE migration_id = \'word_shared_preferences_v1_to_local_v1\' AND state = \'completed\'',
+          );
+        }
+        if (from < 7) {
+          await migrator.createTable(tasks);
+          await migrator.createIndex(idxTasksOpenDueDate);
+          await migrator.createTable(dailyPriorityTasks);
+          await migrator.createIndex(idxDailyPriorityTasksDatePosition);
+          await customStatement(
+            'UPDATE local_migration_metadata '
+            'SET target_schema_version = 7 '
+            "WHERE migration_id = 'word_shared_preferences_v1_to_local_v1' "
+            "AND state = 'completed'",
+          );
+        }
+        if (from < 8) {
+          await migrator.addColumn(biblePlans, biblePlans.lastReadLocationJson);
+          await migrator.alterTable(TableMigration(wordAudioPreferences));
+          await customStatement(
+            'UPDATE local_migration_metadata SET target_schema_version = 8 '
+            "WHERE migration_id = 'word_shared_preferences_v1_to_local_v1' "
+            "AND state = 'completed'",
+          );
+        }
+        if (from < 9) {
+          await migrator.addColumn(
+            biblePlanScheduleEntries,
+            biblePlanScheduleEntries.completedChapterKeysJson,
+          );
+          await customStatement(
+            'UPDATE local_migration_metadata SET target_schema_version = 9 '
+            "WHERE migration_id = 'word_shared_preferences_v1_to_local_v1' AND state = 'completed'",
+          );
+        }
+        if (from < 10) {
+          if (from >= 7) {
+            await migrator.addColumn(tasks, tasks.plannedDate);
+            await migrator.addColumn(tasks, tasks.startMinutesLocal);
+            await migrator.addColumn(tasks, tasks.endMinutesLocal);
+          }
+          await customStatement(
+            "UPDATE local_migration_metadata SET target_schema_version = 10 "
+            "WHERE migration_id = 'word_shared_preferences_v1_to_local_v1' AND state = 'completed'",
+          );
+        }
+      });
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');

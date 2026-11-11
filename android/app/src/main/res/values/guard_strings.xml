@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="guard_accessibility_label">New Man whole-app test</string>
+    <string name="guard_accessibility_description">Optional qualification test. While a test runs, New Man checks app-change identities from other apps to avoid affecting recovery screens and returns you Home only from selected YouTube, Instagram, Facebook, or TikTok apps. It reads no screen content, text, messages, or screenshots, saves no app history, and sends nothing.</string>
+</resources>

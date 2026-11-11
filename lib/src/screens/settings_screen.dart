@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../controllers/app_controller.dart';
+import '../app/theme/new_man_theme.dart';
+import '../features/settings/domain/appearance_preferences.dart';
 import '../widgets/page_header.dart';
 import '../widgets/responsive_content.dart';
 
@@ -17,10 +19,11 @@ class SettingsScreen extends StatelessWidget {
         children: <Widget>[
           const PageHeader(
             title: 'Settings',
-            subtitle:
-                'Manage device voices, reminders, and future synchronization.',
+            subtitle: 'Choose your appearance and manage device preferences.',
           ),
           const SizedBox(height: 24),
+          _AppearanceSettings(controller: controller),
+          const SizedBox(height: 16),
           Card(
             child: ListTile(
               leading: const Icon(Icons.translate),
@@ -31,7 +34,7 @@ class SettingsScreen extends StatelessWidget {
               trailing: const Icon(Icons.arrow_forward),
               onTap: () {
                 controller.selectDestination(1);
-                controller.selectWordDestination(4);
+                controller.selectWordDestination(3);
               },
             ),
           ),
@@ -56,10 +59,109 @@ class SettingsScreen extends StatelessWidget {
             subtitle:
                 'The MVP is local-first. Optional Supabase account sync will be added after the core planner is stable.',
           ),
+          const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.article_outlined),
+              title: const Text('Open-source licenses'),
+              subtitle: const Text(
+                'View licenses for software used by New Man.',
+              ),
+              trailing: const Icon(Icons.arrow_forward),
+              onTap: () =>
+                  showLicensePage(context: context, applicationName: 'New Man'),
+            ),
+          ),
         ],
       ),
     );
   }
+}
+
+class _AppearanceSettings extends StatelessWidget {
+  const _AppearanceSettings({required this.controller});
+  final AppController controller;
+
+  Future<void> _save(
+    BuildContext context, {
+    AppearanceMode? mode,
+    AccentColor? accent,
+  }) async {
+    try {
+      await controller.setAppearance(mode: mode, accent: accent);
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not save appearance. Please try again.'),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: controller,
+    builder: (context, _) => Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Appearance', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            const Text('Display mode'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final mode in AppearanceMode.values)
+                  ChoiceChip(
+                    label: Text(switch (mode) {
+                      AppearanceMode.system => 'System',
+                      AppearanceMode.light => 'Light',
+                      AppearanceMode.dark => 'Dark',
+                    }),
+                    selected: controller.appearance.mode == mode,
+                    onSelected: controller.savingAppearance
+                        ? null
+                        : (_) => _save(context, mode: mode),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Text('Accent color'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final accent in AccentColor.values)
+                  ChoiceChip(
+                    avatar: CircleAvatar(
+                      backgroundColor: NewManTheme.buttonColor(
+                        accent,
+                        Theme.of(context).brightness,
+                      ),
+                    ),
+                    label: Text(switch (accent) {
+                      AccentColor.blue => 'Blue',
+                      AccentColor.green => 'Green',
+                      AccentColor.brown => 'Brown',
+                    }),
+                    selected: controller.appearance.accent == accent,
+                    onSelected: controller.savingAppearance
+                        ? null
+                        : (_) => _save(context, accent: accent),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _SettingTile extends StatelessWidget {

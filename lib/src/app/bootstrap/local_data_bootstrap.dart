@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../features/settings/data/shared_preferences_appearance_repository.dart';
 
 import '../../controllers/app_controller.dart';
 import '../../core/database/app_database.dart';
@@ -62,6 +63,7 @@ Future<LocalDataBootstrapResult> bootstrapLocalData() async {
       ? DriftBibleVersionRepository(WordTranslationStateDao(database))
       : BibleVersionRepository();
   final controller = AppController(
+    appearanceRepository: SharedPreferencesAppearanceRepository(),
     repository: planRepository,
     versionRepository: versionRepository,
     readerStateRepository: driftIsAuthoritative

@@ -1,4 +1,3 @@
-# Dart / Flutter
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
@@ -7,51 +6,30 @@
 .pub/
 build/
 coverage/
-
-# Editors and operating systems
 .idea/
 .vscode/
 *.iml
-.DS_Store
-Thumbs.db
-
-# Generated platform files
 android/.gradle/
 android/local.properties
 windows/flutter/ephemeral/
-
-# Logs and local tooling output
-*.log
-*.out
-*.err
-*.tmp
-__pycache__/
-*.py[cod]
-
-# Secrets and signing material
 .env
 .env.*
 !.env.example
 *.jks
 *.keystore
 *.p12
-*.pfx
 *.pem
 *.key
+__pycache__/
+
+# New Man automation local state/secrets
+.newman-automation/
 automation/secrets.json
+
+# New Man automation machine config
 automation/config.local.json
 
-# Internal development/orchestration artifacts are not part of the public repo
-.agents/
-.newman-automation/
-automation/
-prompts/
-reference/
-docs/development/
-AGENTS.md
-CODEX_START_HERE.md
-current-milestone.md
-MANIFEST.txt
-PATCH_NOTES.md
-PROJECT_STATUS.md
-
+# Local build-runner output and Android signing properties
+/build_runner_*.out
+/build_runner_*.err
+/android/key.properties

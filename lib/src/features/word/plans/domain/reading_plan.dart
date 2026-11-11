@@ -7,11 +7,40 @@ class ScheduledReading {
     required this.references,
     this.completed = false,
     this.translationOverride,
+    this.completedChapterKeys = const {},
   });
 
   final DateTime date;
   final List<ScriptureReference> references;
   final bool completed;
+  final Set<String> completedChapterKeys;
+  List<ScriptureReference> get chapters {
+    final seen = <String>{};
+    return [
+      for (final ref in references)
+        for (var c = ref.startChapter; c <= ref.resolvedEndChapter; c++)
+          if (seen.add('${ref.book}:$c'))
+            ScriptureReference(book: ref.book, startChapter: c),
+    ];
+  }
+
+  static String chapterKey(ScriptureReference ref) =>
+      '${ref.book}:${ref.startChapter}';
+  bool isChapterCompleted(ScriptureReference ref) =>
+      completed || completedChapterKeys.contains(chapterKey(ref));
+  int get completedChapterCount => chapters.where(isChapterCompleted).length;
+  ScheduledReading completeChapter(ScriptureReference ref) {
+    if (!chapters.any((c) => chapterKey(c) == chapterKey(ref))) {
+      throw ArgumentError('Chapter is not assigned to this day');
+    }
+    if (isChapterCompleted(ref)) return this;
+    final keys = {...completedChapterKeys, chapterKey(ref)};
+    return copyWith(
+      completedChapterKeys: keys,
+      completed: chapters.every((c) => keys.contains(chapterKey(c))),
+    );
+  }
+
   final BibleTranslation? translationOverride;
 
   BibleTranslation effectiveTranslation(BibleTranslation planDefault) =>
@@ -21,6 +50,7 @@ class ScheduledReading {
     DateTime? date,
     List<ScriptureReference>? references,
     bool? completed,
+    Set<String>? completedChapterKeys,
     BibleTranslation? translationOverride,
     bool clearTranslationOverride = false,
   }) {
@@ -28,6 +58,7 @@ class ScheduledReading {
       date: date ?? this.date,
       references: references ?? this.references,
       completed: completed ?? this.completed,
+      completedChapterKeys: completedChapterKeys ?? this.completedChapterKeys,
       translationOverride: clearTranslationOverride
           ? null
           : translationOverride ?? this.translationOverride,
@@ -38,6 +69,7 @@ class ScheduledReading {
     'date': date.toIso8601String(),
     'references': references.map((reference) => reference.toJson()).toList(),
     'completed': completed,
+    'completedChapterKeys': completedChapterKeys.toList()..sort(),
     'translationOverride': translationOverride?.name,
   };
 
@@ -51,6 +83,10 @@ class ScheduledReading {
           )
           .toList(),
       completed: json['completed'] as bool? ?? false,
+      completedChapterKeys: Set<String>.unmodifiable(
+        (json['completedChapterKeys'] as List<dynamic>? ?? const [])
+            .cast<String>(),
+      ),
       translationOverride: translationName == null
           ? null
           : BibleTranslation.values.byName(translationName),
@@ -71,6 +107,8 @@ class ReadingPlan {
     required this.sourceReferences,
     required this.assignments,
     this.templateId,
+    this.lastReadLocation,
+    this.lastReadAssignmentHint,
   });
 
   final String id;
@@ -84,11 +122,70 @@ class ReadingPlan {
   final List<ScriptureReference> sourceReferences;
   final List<ScheduledReading> assignments;
   final String? templateId;
+  final ScriptureReference? lastReadLocation;
+  final int? lastReadAssignmentHint;
+
+  int? get lastReadAssignmentIndex {
+    final location = lastReadLocation;
+    if (location == null) return null;
+    final hint = lastReadAssignmentHint;
+    if (hint != null &&
+        hint >= 0 &&
+        hint < assignments.length &&
+        assignments[hint].references.any(
+          (ref) =>
+              ref.book == location.book &&
+              location.startChapter >= ref.startChapter &&
+              location.startChapter <= ref.resolvedEndChapter,
+        )) {
+      return hint;
+    }
+    final index = assignments.indexWhere(
+      (reading) => reading.references.any(
+        (ref) =>
+            ref.book == location.book &&
+            location.startChapter >= ref.startChapter &&
+            location.startChapter <= ref.resolvedEndChapter,
+      ),
+    );
+    return index < 0 ? null : index;
+  }
+
+  int get progressAssignmentIndex {
+    if (assignments.isEmpty) return 0;
+    final lastPartial = assignments.lastIndexWhere(
+      (item) => item.completed || item.completedChapterCount > 0,
+    );
+    if (lastPartial >= 0 && !assignments[lastPartial].completed) {
+      return lastPartial;
+    }
+    final lastCompleted = assignments.lastIndexWhere((item) => item.completed);
+    return (lastCompleted + 1).clamp(0, assignments.length - 1);
+  }
+
+  int readingStartChapterIndex(int day) {
+    final reading = assignments[day];
+    final chapters = reading.chapters;
+    if (lastReadAssignmentIndex == day && lastReadLocation != null) {
+      final index = chapters.indexWhere(
+        (c) =>
+            ScheduledReading.chapterKey(c) ==
+            ScheduledReading.chapterKey(lastReadLocation!),
+      );
+      if (index >= 0) return index;
+    }
+    final next = chapters.indexWhere((c) => !reading.isChapterCompleted(c));
+    return next < 0 ? 0 : next;
+  }
 
   int get completedCount => assignments.where((item) => item.completed).length;
 
+  int get totalChapterCount =>
+      assignments.fold(0, (sum, day) => sum + day.chapters.length);
+  int get completedChapterCount =>
+      assignments.fold(0, (sum, day) => sum + day.completedChapterCount);
   double get progress =>
-      assignments.isEmpty ? 0 : completedCount / assignments.length;
+      totalChapterCount == 0 ? 0 : completedChapterCount / totalChapterCount;
 
   ReadingPlan copyWith({
     String? title,
@@ -100,6 +197,8 @@ class ReadingPlan {
     List<ScriptureReference>? sourceReferences,
     List<ScheduledReading>? assignments,
     String? templateId,
+    ScriptureReference? lastReadLocation,
+    int? lastReadAssignmentHint,
   }) {
     return ReadingPlan(
       id: id,
@@ -113,6 +212,9 @@ class ReadingPlan {
       sourceReferences: sourceReferences ?? this.sourceReferences,
       assignments: assignments ?? this.assignments,
       templateId: templateId ?? this.templateId,
+      lastReadLocation: lastReadLocation ?? this.lastReadLocation,
+      lastReadAssignmentHint:
+          lastReadAssignmentHint ?? this.lastReadAssignmentHint,
     );
   }
 
@@ -128,6 +230,8 @@ class ReadingPlan {
     'sourceReferences': sourceReferences.map((item) => item.toJson()).toList(),
     'assignments': assignments.map((item) => item.toJson()).toList(),
     'templateId': templateId,
+    'lastReadLocation': lastReadLocation?.toJson(),
+    'lastReadAssignmentHint': lastReadAssignmentHint,
   };
 
   factory ReadingPlan.fromJson(Map<String, dynamic> json) {
@@ -168,6 +272,12 @@ class ReadingPlan {
       sourceReferences: sourceReferences,
       assignments: assignments,
       templateId: json['templateId'] as String?,
+      lastReadAssignmentHint: json['lastReadAssignmentHint'] as int?,
+      lastReadLocation: json['lastReadLocation'] == null
+          ? null
+          : ScriptureReference.fromJson(
+              json['lastReadLocation'] as Map<String, dynamic>,
+            ),
     );
   }
 }

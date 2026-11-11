@@ -228,6 +228,42 @@ void main() {
     },
   );
 
+  test('combined edits and clear preserve completion and due dates', () async {
+    final day = DateTime(2026, 9, 5);
+    final block = TaskTimeBlock(
+      plannedDate: day,
+      startMinutesLocal: 90,
+      endMinutesLocal: 1440,
+    );
+    final original = await service.createTask(
+      title: 'Task',
+      dueDate: day,
+      timeBlock: block,
+    );
+    await service.setCompleted(original, true);
+    await service.saveEdit(
+      original: original,
+      title: 'Edited',
+      dueDate: day,
+      timeBlock: block,
+    );
+    var current = (await repository.loadTask(original.id))!;
+    expect(current.isCompleted, isTrue);
+    expect(current.dueDate, day);
+    expect(current.timeBlock!.endMinutesLocal, 1440);
+    await service.saveEdit(
+      original: current,
+      title: current.title,
+      dueDate: day,
+      timeBlock: null,
+    );
+    current = (await repository.loadTask(original.id))!;
+    expect(current.timeBlock, isNull);
+    expect(current.isCompleted, isTrue);
+    expect(current.dueDate, day);
+    expect(current.title, 'Edited');
+  });
+
   test(
     'reorder preserves membership and rolls back atomically on failure',
     () async {

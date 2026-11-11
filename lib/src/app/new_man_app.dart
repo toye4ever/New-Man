@@ -1,12 +1,15 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../controllers/app_controller.dart';
-import '../features/accountability/presentation/accountability_screen.dart';
 import '../features/focus/presentation/focus_screen.dart';
+import '../features/settings/domain/appearance_preferences.dart';
+import '../features/accountability/presentation/accountability_screen.dart';
 import '../features/settings/presentation/more_screen.dart';
 import '../features/today/presentation/today_screen.dart';
 import '../features/tasks/application/task_service.dart';
 import '../features/word/presentation/word_screen.dart';
+import 'developer_tools_policy.dart';
 import 'theme/new_man_theme.dart';
 
 class NewManApp extends StatelessWidget {
@@ -17,26 +20,44 @@ class NewManApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'New Man',
-      debugShowCheckedModeBanner: false,
-      theme: NewManTheme.light,
-      darkTheme: NewManTheme.dark,
-      themeMode: ThemeMode.system,
-      home: AnimatedBuilder(
-        animation: controller,
-        builder: (context, _) =>
-            NewManShell(controller: controller, taskService: taskService),
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) => MaterialApp(
+        title: 'New Man',
+        debugShowCheckedModeBanner: false,
+        theme: NewManTheme.build(
+          Brightness.light,
+          controller.appearance.accent,
+        ),
+        darkTheme: NewManTheme.build(
+          Brightness.dark,
+          controller.appearance.accent,
+        ),
+        themeMode: switch (controller.appearance.mode) {
+          AppearanceMode.system => ThemeMode.system,
+          AppearanceMode.light => ThemeMode.light,
+          AppearanceMode.dark => ThemeMode.dark,
+        },
+        home: NewManShell(controller: controller, taskService: taskService),
       ),
     );
   }
 }
 
 class NewManShell extends StatelessWidget {
-  const NewManShell({required this.controller, this.taskService, super.key});
+  const NewManShell({
+    required this.controller,
+    this.taskService,
+    this.developerToolsOptIn,
+    super.key,
+  });
 
   final AppController controller;
   final TaskService? taskService;
+
+  /// Optional define value seam for deterministic shell tests. The actual build
+  /// mode is always checked by [developerGuardToolsEnabled].
+  final bool? developerToolsOptIn;
 
   static const _destinations = <NavigationDestination>[
     NavigationDestination(
@@ -69,9 +90,17 @@ class NewManShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
-      TodayScreen(taskService: taskService),
+      TodayScreen(
+        taskService: taskService,
+        onOpenWord: () => controller.selectDestination(1),
+      ),
       WordScreen(controller: controller),
-      const FocusScreen(),
+      developerGuardToolsEnabled(
+            isDebugMode: kDebugMode,
+            optedIn: developerToolsOptIn ?? developerGuardToolsOptedIn,
+          )
+          ? const FocusScreen()
+          : const _DeferredFocusScreen(),
       const AccountabilityScreen(),
       MoreScreen(controller: controller),
     ];
@@ -124,6 +153,23 @@ class NewManShell extends StatelessWidget {
       },
     );
   }
+}
+
+class _DeferredFocusScreen extends StatelessWidget {
+  const _DeferredFocusScreen();
+
+  @override
+  Widget build(BuildContext context) => const SafeArea(
+    child: Center(
+      child: Padding(
+        padding: EdgeInsets.all(24),
+        child: Text(
+          'Focus tools are not part of this beta.',
+          textAlign: TextAlign.center,
+        ),
+      ),
+    ),
+  );
 }
 
 class _NewManMark extends StatelessWidget {

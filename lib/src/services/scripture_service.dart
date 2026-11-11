@@ -7,6 +7,7 @@ import '../features/word/bible/application/scripture_repository.dart';
 import '../models/reading_plan.dart';
 import 'bible_version_repository.dart';
 import '../models/scripture_reference.dart';
+import '../features/word/bible/application/scripture_search.dart';
 
 export '../features/word/bible/application/scripture_repository.dart';
 
@@ -14,6 +15,17 @@ abstract class ScriptureService implements ScriptureRepository {}
 
 class KjvScriptureService implements ScriptureService {
   Map<String, dynamic>? _data;
+
+  Future<List<SearchVerse>> searchVerses() async {
+    final data = await _load();
+    final books = data['books'] as Map<String, dynamic>? ?? {};
+    return [for (final book in books.entries)
+      for (final chapter in (book.value as Map<String, dynamic>).entries)
+        for (final verse in (chapter.value as Map<String, dynamic>).entries)
+          SearchVerse(ScriptureReference(book: book.key,
+            startChapter: int.parse(chapter.key), startVerse: int.parse(verse.key)),
+            verse.value as String)];
+  }
 
   Future<Map<String, dynamic>> _load() async {
     if (_data != null) {

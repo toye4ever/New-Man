@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="guard_accessibility_label">Prueba de aplicaciones completas de New Man</string>
+    <string name="guard_accessibility_description">Prueba opcional de calificación. Mientras se ejecuta, New Man comprueba identidades de cambio de aplicación de otras aplicaciones para no afectar las pantallas de recuperación y te lleva a Inicio solo desde YouTube, Instagram, Facebook o TikTok seleccionados. No lee contenido de pantalla, texto, mensajes ni capturas de pantalla, no guarda historial de aplicaciones ni envía nada.</string>
+</resources>
