@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:scripture_planner/src/controllers/app_controller.dart';
 import 'package:scripture_planner/src/core/database/app_database.dart';
+import 'package:scripture_planner/src/data/bible_books.dart';
 import 'package:scripture_planner/src/features/word/plans/application/plan_repository.dart';
 import 'package:scripture_planner/src/features/word/plans/domain/reading_plan.dart';
 import 'package:scripture_planner/src/features/word/translations/data/drift_bible_version_repository.dart';
@@ -110,6 +111,23 @@ void main() {
     expect(books['2 John'], isNotEmpty);
     expect(books['3 John'], isNotEmpty);
     expect(books.containsKey('Tobit'), isFalse);
+  });
+
+  test('KJV converter rejects repeated references counted as new verses', () {
+    final duplicate = _vplZip(
+      List<String>.filled(31102, 'GEN 1:1 Duplicate').join('\n'),
+    );
+    expect(() => convertKjvArchive(duplicate), throwsFormatException);
+  });
+
+  test('KJV converter rejects a full count with a missing chapter', () {
+    final missingChapter = _completeVplZip(omitFirstGenesisChapter: true);
+    expect(() => convertKjvArchive(missingChapter), throwsFormatException);
+  });
+
+  test('KJV converter rejects gaps despite a full verse and chapter count', () {
+    final gap = _completeVplZip(gapInFirstVerse: true);
+    expect(() => convertKjvArchive(gap), throwsFormatException);
   });
 
   test(
@@ -324,7 +342,10 @@ class _BytesClient extends http.BaseClient {
   }
 }
 
-List<int> _completeVplZip() {
+List<int> _completeVplZip({
+  bool omitFirstGenesisChapter = false,
+  bool gapInFirstVerse = false,
+}) {
   const verseCounts = <int>[
     1533, 1213, 859, 1288, 959, 658, 618, 85, 810, 695, 816, 719,
     942, 822, 280, 406, 167, 1070, 2461, 915, 222, 117, 1292, 1364,
@@ -341,8 +362,21 @@ List<int> _completeVplZip() {
   var bookIndex = 0;
   for (final entry in eBibleVplBookNames.entries) {
     final code = alternateCodes[entry.key] ?? entry.key;
-    for (var verse = 1; verse <= verseCounts[bookIndex]; verse++) {
-      lines.add('$code 1:$verse generated verse $verse');
+    final book = bibleBooks[bookIndex];
+    expect(book.name, entry.value);
+    final firstChapter = code == 'GEN' && omitFirstGenesisChapter ? 2 : 1;
+    final chapterCount = book.chapterCount - firstChapter + 1;
+    var remaining = verseCounts[bookIndex];
+    for (var chapter = firstChapter; chapter <= book.chapterCount; chapter++) {
+      final denominator = chapterCount - (chapter - firstChapter);
+      final count = remaining ~/ denominator;
+      remaining -= count;
+      final firstVerse = code == 'GEN' && chapter == 1 && gapInFirstVerse
+          ? 2
+          : 1;
+      for (var verse = firstVerse; verse < firstVerse + count; verse++) {
+        lines.add('$code $chapter:$verse generated verse $verse');
+      }
     }
     bookIndex++;
   }

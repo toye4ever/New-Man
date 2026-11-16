@@ -266,7 +266,7 @@ Map<String, dynamic> convertKjvArchive(List<int> bytes) {
   final archive = ZipDecoder().decodeBytes(bytes);
   final aliases = buildBibleAliasMap();
   final books = <String, Map<String, Map<String, String>>>{};
-  var parsedCount = 0;
+  var uniqueVerseCount = 0;
 
   for (final file in archive) {
     final lowerName = file.name.toLowerCase();
@@ -289,21 +289,54 @@ Map<String, dynamic> convertKjvArchive(List<int> bytes) {
           _eBibleVplBooks[providerCode.toUpperCase()] ??
           aliases[providerCode.toLowerCase()];
       if (book == null) continue;
-      final chapter = match.group(2)!;
-      final verse = match.group(3)!;
+      final chapter = int.tryParse(match.group(2)!);
+      final verse = int.tryParse(match.group(3)!);
       final verseText = match.group(4)!.trim();
-      books
-              .putIfAbsent(book.name, () => <String, Map<String, String>>{})
-              .putIfAbsent(chapter, () => <String, String>{})[verse] =
-          verseText;
-      parsedCount++;
+      if (chapter == null ||
+          chapter < 1 ||
+          chapter > book.chapterCount ||
+          verse == null ||
+          verse < 1 ||
+          verseText.isEmpty) {
+        throw const FormatException(
+          'The KJV package contained an invalid verse.',
+        );
+      }
+      final verses = books
+          .putIfAbsent(book.name, () => <String, Map<String, String>>{})
+          .putIfAbsent('$chapter', () => <String, String>{});
+      if (verses.containsKey('$verse')) {
+        throw const FormatException(
+          'The KJV package contained a duplicate verse.',
+        );
+      }
+      verses['$verse'] = verseText;
+      uniqueVerseCount++;
     }
   }
 
-  if (parsedCount < 30000) {
-    throw const FormatException(
-      'The downloaded KJV package used an unexpected format.',
-    );
+  // eBible's standardized 1769 Protestant canon contains 31,102 verses.
+  // Check the unique count, every canonical chapter, and contiguous verse
+  // numbering rather than counting lines (which duplicates can inflate).
+  const expectedVerseCount = 31102;
+  if (uniqueVerseCount != expectedVerseCount) {
+    throw const FormatException('The KJV package verse count was incomplete.');
+  }
+  for (final book in bibleBooks) {
+    final chapters = books[book.name];
+    for (var chapter = 1; chapter <= book.chapterCount; chapter++) {
+      final verses = chapters?['$chapter'];
+      if (verses == null || verses.isEmpty) {
+        throw const FormatException('The KJV package was missing a chapter.');
+      }
+      for (var verse = 1; verse <= verses.length; verse++) {
+        if (!verses.containsKey('$verse')) {
+          throw const FormatException(
+            'The KJV package had missing verse numbers.',
+          );
+        }
+      }
+    }
   }
 
   return <String, dynamic>{
@@ -311,7 +344,7 @@ Map<String, dynamic> convertKjvArchive(List<int> bytes) {
       'translation': 'King James Version',
       'source': 'eBible.org standardized 1769 KJV',
       'complete': true,
-      'verseCount': parsedCount,
+      'verseCount': uniqueVerseCount,
     },
     'books': books,
   };
