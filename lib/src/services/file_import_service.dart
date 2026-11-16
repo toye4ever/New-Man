@@ -22,13 +22,17 @@ class FileImportService {
     }
 
     final file = result.single;
-    final bytes = await file.readAsBytes();
-    final extensionSeparator = file.name.lastIndexOf('.');
+    return parsePassageFile(file.name, await file.readAsBytes());
+  }
+
+  /// Decodes a selected file without changing the current plan.
+  ImportedPassageText parsePassageFile(String fileName, Uint8List bytes) {
+    final extensionSeparator = fileName.lastIndexOf('.');
     final extension = extensionSeparator == -1
         ? ''
-        : file.name.substring(extensionSeparator + 1).toLowerCase();
+        : fileName.substring(extensionSeparator + 1).toLowerCase();
     final text = switch (extension) {
-      'txt' => utf8.decode(bytes),
+      'txt' => _decodeText(bytes),
       'csv' => _extractCsvPassages(bytes),
       'json' => _extractJsonPassages(bytes),
       _ => throw const FormatException(
@@ -36,11 +40,19 @@ class FileImportService {
       ),
     };
 
-    return ImportedPassageText(fileName: file.name, text: text.trim());
+    if (text.trim().isEmpty) {
+      throw const FormatException('The file contains no passages.');
+    }
+    return ImportedPassageText(fileName: fileName, text: text.trim());
+  }
+
+  String _decodeText(Uint8List bytes) {
+    final text = utf8.decode(bytes);
+    return text.startsWith('\uFEFF') ? text.substring(1) : text;
   }
 
   String _extractCsvPassages(Uint8List bytes) {
-    final rows = _parseCsv(utf8.decode(bytes));
+    final rows = _parseCsv(_decodeText(bytes));
     if (rows.isEmpty) {
       throw const FormatException('The CSV file is empty.');
     }
@@ -73,7 +85,7 @@ class FileImportService {
   }
 
   String _extractJsonPassages(Uint8List bytes) {
-    final decoded = jsonDecode(utf8.decode(bytes));
+    final decoded = jsonDecode(_decodeText(bytes));
     final passages = <String>[];
 
     void addValue(dynamic value) {
@@ -81,9 +93,16 @@ class FileImportService {
         passages.add(value.trim());
       } else if (value is Map<String, dynamic>) {
         final candidate = value['passage'] ?? value['reference'];
-        if (candidate is String && candidate.trim().isNotEmpty) {
-          passages.add(candidate.trim());
+        if (candidate is! String || candidate.trim().isEmpty) {
+          throw const FormatException(
+            'A JSON reading has no passage or reference.',
+          );
         }
+        passages.add(candidate.trim());
+      } else {
+        throw const FormatException(
+          'A JSON reading must contain a passage or reference.',
+        );
       }
     }
 
@@ -113,6 +132,7 @@ class FileImportService {
     var row = <String>[];
     var field = StringBuffer();
     var quoted = false;
+    var closedQuote = false;
 
     for (var index = 0; index < input.length; index++) {
       final character = input[index];
@@ -120,12 +140,18 @@ class FileImportService {
         if (quoted && index + 1 < input.length && input[index + 1] == '"') {
           field.write('"');
           index++;
+        } else if (quoted) {
+          quoted = false;
+          closedQuote = true;
+        } else if (field.isEmpty && !closedQuote) {
+          quoted = true;
         } else {
-          quoted = !quoted;
+          throw const FormatException('Invalid quotation in the CSV file.');
         }
       } else if (character == ',' && !quoted) {
         row.add(field.toString());
         field = StringBuffer();
+        closedQuote = false;
       } else if ((character == '\n' || character == '\r') && !quoted) {
         if (character == '\r' &&
             index + 1 < input.length &&
@@ -138,11 +164,18 @@ class FileImportService {
           rows.add(row);
         }
         row = <String>[];
+        closedQuote = false;
       } else {
+        if (closedQuote) {
+          throw const FormatException('Unexpected text after a CSV quotation.');
+        }
         field.write(character);
       }
     }
 
+    if (quoted) {
+      throw const FormatException('The CSV file has an unclosed quotation.');
+    }
     row.add(field.toString());
     if (row.any((value) => value.trim().isNotEmpty)) {
       rows.add(row);
