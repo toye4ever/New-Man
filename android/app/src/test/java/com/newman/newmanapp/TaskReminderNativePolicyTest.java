@@ -8,6 +8,7 @@ public final class TaskReminderNativePolicyTest {
     private static final String KEY = "a".repeat(64);
     private static final String SCOPE = "b".repeat(64);
     public static void main(String[] args) throws Exception {
+        cancellationFaults();
         accessFailsClosed();
         schedulingRequiresEveryGate();
         deliveryRequiresFreshAuthorityAndReceipt();
@@ -16,6 +17,24 @@ public final class TaskReminderNativePolicyTest {
         sourceRemainsDormant();
         System.out.println("TaskReminderNativePolicyTest: all assertions passed");
     }
+    private static void cancellationFaults() {
+        java.util.List<String> calls = new java.util.ArrayList<>();
+        boolean confirmed = TaskReminderNativePolicy.cancelQueue(java.util.List.of("a", "b"),
+            () -> calls.add("durable-disarm"), key -> {
+                calls.add(key);
+                if (key.equals("a")) throw new java.io.IOException("injected OS failure");
+            });
+        assert !confirmed;
+        assert calls.equals(java.util.List.of("durable-disarm", "a", "b"));
+        calls.clear();
+        confirmed = TaskReminderNativePolicy.cancelQueue(java.util.List.of("a", "b"),
+            () -> { throw new java.io.IOException("injected persistence failure"); }, calls::add);
+        assert !confirmed && calls.isEmpty();
+        assert TaskReminderNativePolicy.cancelQueue(java.util.List.of("a", "b"),
+            () -> calls.add("durable-disarm"), calls::add);
+        assert calls.equals(java.util.List.of("durable-disarm", "a", "b"));
+    }
+
     private static void accessFailsClosed() {
         assert !TaskReminderNativePolicy.access(false, 33, true, true, true, true);
         assert !TaskReminderNativePolicy.access(true, 25, true, true, true, true);
@@ -33,6 +52,9 @@ public final class TaskReminderNativePolicyTest {
     }
     private static void schedulingRequiresEveryGate() {
         assert schedule(true, KEY, SCOPE, 4, 10, 20, 30, false, 0, false, true);
+        assert !schedule(true, KEY, SCOPE, 4, 10, 20, 30, false, 65, true, true);
+        assert schedule(true, KEY, SCOPE, 4, 10, 20, 30, false, 64, true, true);
+        assert !schedule(true, KEY, SCOPE, 4, 10, 20, 30, false, 64, false, true);
         assert !schedule(false, KEY, SCOPE, 4, 10, 20, 30, false, 0, false, true);
         assert !schedule(true, "raw-task-id", SCOPE, 4, 10, 20, 30, false, 0, false, true);
         assert !schedule(true, KEY, "c".repeat(64), 4, 10, 20, 30, false, 0, false, true);

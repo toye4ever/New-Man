@@ -44,8 +44,11 @@ IDs and reminder/date/state metadata, never private task titles. A work bound of
 Native JSON key generation has portable vectors matching Dart's encoding.
 
 Pending records are persisted unarmed before OS scheduling, then marked armed
-only after success. An unarmed record cannot post. Cancellation performs OS
-cleanup before removing its ledger record; failed cleanup/commit is unconfirmed.
+only after success. An unarmed record cannot post. Cancellation durably disarms records before OS
+cleanup and removes them only after cleanup; failed cleanup/commit is unconfirmed.
+Bulk cancellation disarms the whole known queue first and attempts every key even
+when individual cleanup fails. Disarmed records cannot deliver despite a queued
+broadcast or lost OS cancellation.
 An unreadable ledger cannot truthfully acknowledge that every old job was
 cancelled. Explicit Off is committed first and invalidates revisions before
 cleanup. The receiver rechecks current Off/permission state independently of its
@@ -83,3 +86,39 @@ It checks Off/permission gates, stale revisions, receipt/expiry limits, authorit
 task rejection, full-key/hash vectors, DST and dormant manifest/activity status.
 Kotlin PSI parsing uses the existing cached Kotlin compiler and catches syntax
 errors only. Neither check proves Android APIs link or that an APK delivers.
+
+## Reproducible validation gates
+
+1. At an exact clean candidate commit, use JDK 21:
+   `JAVA_HOME=/path/to/jdk-21 bash tools/check_native_reminder_policy.sh`.
+   This includes injected disarm persistence failure, first-job OS cleanup failure,
+   continued cleanup of later jobs, queue-cap replacement and disarmed delivery.
+   It proves portable coordinator/policy behavior, not SharedPreferences durability.
+2. Run `python3 -m unittest discover -s tools -p 'test_*.py'` and
+   `git diff --check`. With pinned Flutter 3.44.8 and the lockfile, run
+   `flutter pub get --enforce-lockfile`, `flutter analyze`, `flutter test`.
+   The preceding transport checkpoint passed 374 Flutter tests; no Dart changes
+   are introduced by this native review.
+3. After parent review/publication, the existing feature-only Android workflow
+   must build the exact commit with preinstalled SDK/NDK, pinned host CMake and
+   debug ARM64. This is the first Android type/link compilation gate for this
+   foundation. Do not interpret portable tests or Kotlin parsing as compilation.
+   Run the existing compiled-manifest checker; verify receiver/notification
+   permission absence and development package suffix. No separate upload or
+   device workflow is authorized here.
+4. Before any future wiring, use an authorized isolated development install and
+   synthetic tasks. Verify support-directory path/schema; complete/edit/delete/
+   dismiss cancellation; Off during callback; permission/channel revocation;
+   failed metadata writes and each OS cleanup call; 64 pending/2,048 receipts;
+   process death before/after arm and receipt commits; clock/zone changes/reboot;
+   spring gap/fall overlap/skipped day; Doze, overdue expiry and no replay.
+   Confirm private titles never appear in notification, lock screen, intents or
+   logs. Device permissions and receiver wiring require a separately reviewed
+   unit and explicit owner-controlled opt-in; this checklist grants neither.
+
+Review limits: revocation is checked at scheduling and delivery, not monitored
+while the process is absent. A revoke-and-restore interval between checks cannot
+be detected; no guarantee that historic permission revocation permanently cancels
+all OS jobs is made. Receipt exhaustion intentionally stops native scheduling;
+there is no receipt reset/pruning UI. Off does not discard receipts. Both choices
+must remain explicit in qualification and future enable-flow design.

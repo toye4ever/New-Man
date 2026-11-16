@@ -105,9 +105,12 @@ internal class TaskReminderNativeBackend(context: Context) {
 
     fun cancel(key: String): Map<String, Any> = synchronized(lock) {
         require(TaskReminderNativePolicy.key(key))
+        val records = pending()
+        records.optJSONObject(key)?.put("armed", false)
+        // A failed OS cancellation must not leave a deliverable durable record.
+        check(preferences.edit().putString("pending", records.toString()).commit())
         alarmIntent(key, false)?.let { alarms.cancel(it); it.cancel() }
         notifications.cancel(TAG_PREFIX + key, 0)
-        val records = pending()
         records.remove(key)
         check(preferences.edit().putString("pending", records.toString()).commit())
         mapOf("protocol" to 1, "key" to key, "cancelled" to true, "postedCleared" to true)
@@ -118,9 +121,15 @@ internal class TaskReminderNativeBackend(context: Context) {
         try {
             val records = pending()
             val keys = records.keys().asSequence().toList()
-            for (key in keys) cancel(key)
+            // Disarm the whole known queue before the first fallible OS call.
+            confirmed = TaskReminderNativePolicy.cancelQueue(keys, {
+                for (key in keys) records.optJSONObject(key)?.put("armed", false)
+                check(preferences.edit().putString("pending", records.toString()).commit())
+            }, { key -> cancel(key); Unit })
             val handled = receipts()
-            for (key in handled.keys()) notifications.cancel(TAG_PREFIX + key, 0)
+            for (key in handled.keys()) {
+                try { notifications.cancel(TAG_PREFIX + key, 0) } catch (_: Exception) { confirmed = false }
+            }
         } catch (_: Exception) { confirmed = false }
         // Clear only this feature's posted notifications, never other app features.
         try {

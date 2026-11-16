@@ -28,7 +28,8 @@ public final class TaskReminderNativePolicy {
         return access && key(key) && key(scope) && scope.equals(activeScope)
                 && revision >= 0 && revision == expectedRevision
                 && trigger > now && expiry > trigger && !received
-                && pendingCount >= 0 && (pendingCount < MAX_PENDING || replacing)
+                && pendingCount >= 0 && pendingCount <= MAX_PENDING
+                && (pendingCount < MAX_PENDING || replacing)
                 && authoritative;
     }
 
@@ -40,6 +41,20 @@ public final class TaskReminderNativePolicy {
                 && revision >= 0 && revision == currentRevision
                 && armed && !received && withinWindow(now, trigger, expiry)
                 && receiptCount >= 0 && receiptCount < MAX_RECEIPTS && authoritative;
+    }
+
+    @FunctionalInterface public interface CheckedAction { void run() throws Exception; }
+    @FunctionalInterface public interface CheckedKeyAction { void run(String key) throws Exception; }
+
+    /** Persist disarmed authority before cleanup; one failed job never skips later jobs. */
+    public static boolean cancelQueue(Iterable<String> keys, CheckedAction disarm,
+            CheckedKeyAction cleanup) {
+        try { disarm.run(); } catch (Exception failure) { return false; }
+        boolean confirmed = true;
+        for (String key : keys) {
+            try { cleanup.run(key); } catch (Exception failure) { confirmed = false; }
+        }
+        return confirmed;
     }
 
     public static boolean withinWindow(long now, long trigger, long expiry) {
