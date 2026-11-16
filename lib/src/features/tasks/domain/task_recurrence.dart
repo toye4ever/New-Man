@@ -50,3 +50,16 @@ class TaskRecurrence {
     return List<int>.unmodifiable(days);
   }
 }
+
+/// Skips missed dates rather than materializing an overdue backlog.
+DateTime nextTaskOccurrence(
+  TaskRecurrence rule,
+  DateTime? dueDate,
+  DateTime today,
+) {
+  final day = DateTime(today.year, today.month, today.day);
+  final due = dueDate == null
+      ? day
+      : DateTime(dueDate.year, dueDate.month, dueDate.day);
+  return rule.nextAfter(due.isAfter(day) ? due : day);
+}

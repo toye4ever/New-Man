@@ -1,8 +1,11 @@
+import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
+import '../domain/task_recurrence.dart';
 import '../application/task_repository.dart';
 import '../domain/task.dart';
 import 'local/task_dao.dart';
 
-class DriftTaskRepository implements TaskRepository {
+class DriftTaskRepository implements TaskRepository, RepeatingTaskRepository {
   const DriftTaskRepository(this.dao);
   final TaskDao dao;
 
@@ -58,6 +61,50 @@ class DriftTaskRepository implements TaskRepository {
     final record = await dao.loadTask(id);
     return record == null ? null : _task(record);
   }
+
+  @override
+  Future<Task> repeatCompletedTask({
+    required Task source,
+    required TaskRecurrence rule,
+    required DateTime today,
+    required DateTime now,
+  }) => dao.database.transaction(() async {
+    final current = await loadTask(source.id);
+    if (current == null || !current.isCompleted) {
+      throw StateError('Only an existing completed task can be repeated.');
+    }
+    // Stable across restarts and retries. An existing successor is returned
+    // unchanged, even if the caller chooses another rule on a second attempt.
+    final id = const Uuid().v5(
+      Namespace.url.value,
+      'new-man/task-repeat/${source.id}',
+    );
+    final existing = await loadTask(id);
+    if (existing != null) return existing;
+    if (current.updatedAt != source.updatedAt ||
+        current.title != source.title ||
+        current.dueDate != source.dueDate ||
+        current.completedAt != source.completedAt ||
+        !listEquals(current.subtasks, source.subtasks)) {
+      throw StateError(
+        'The task changed. Reopen it before scheduling a repeat.',
+      );
+    }
+    final next = Task(
+      id: id,
+      title: current.title,
+      isCompleted: false,
+      createdAt: now,
+      updatedAt: now,
+      dueDate: nextTaskOccurrence(rule, current.dueDate, today),
+      subtasks: [
+        for (final item in current.subtasks)
+          TaskSubtask(id: item.id, title: item.title),
+      ],
+    );
+    await dao.saveTask(next);
+    return next;
+  });
 
   @override
   Future<void> saveTask(Task task) => dao.saveTask(task);

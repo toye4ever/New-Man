@@ -1,3 +1,4 @@
+import '../domain/task_recurrence.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter/foundation.dart';
 
@@ -153,6 +154,25 @@ class TaskService extends ChangeNotifier {
       )).copyWith(clearTimeBlock: true, updatedAt: _clock().toUtc()),
     ),
   );
+
+  bool get supportsExplicitRepeats => repository is RepeatingTaskRepository;
+
+  Future<Task> repeatCompletedTask(Task source, TaskRecurrence rule) =>
+      _write(() async {
+        final target = repository;
+        if (target is! RepeatingTaskRepository) {
+          throw UnsupportedError(
+            'This repository cannot save repeats atomically.',
+          );
+        }
+        final now = _clock();
+        return (target as RepeatingTaskRepository).repeatCompletedTask(
+          source: source,
+          rule: rule,
+          today: now,
+          now: now.toUtc(),
+        );
+      });
 
   Future<void> deleteTask(String id) => _write(() => repository.deleteTask(id));
   Future<void> selectDailyPriority(DateTime date, String taskId) =>

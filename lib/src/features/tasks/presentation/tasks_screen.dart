@@ -4,6 +4,7 @@ import '../application/task_service.dart';
 import '../domain/task.dart';
 import '../../today/application/today_planner_controller.dart';
 import 'task_editor_dialog.dart';
+import 'task_repeat_dialog.dart';
 
 class TasksScreen extends StatefulWidget {
   const TasksScreen({
@@ -74,6 +75,31 @@ class _TasksScreenState extends State<TasksScreen> with WidgetsBindingObserver {
       initialDate: controller.day,
     )) {
       await controller.refresh();
+    }
+  }
+
+  Future<void> repeat(Task task) async {
+    final next = await showDialog<Task>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => TaskRepeatDialog(
+        service: widget.service,
+        task: task,
+        today: (widget.clock ?? DateTime.now)(),
+      ),
+    );
+    if (next != null && mounted) {
+      await controller.refresh();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            next.dueDate == null
+                ? 'Next task ready: ${next.title}'
+                : 'Next task ready: ${DateFormat.yMMMd().format(next.dueDate!)}',
+          ),
+        ),
+      );
     }
   }
 
@@ -181,6 +207,14 @@ class _TasksScreenState extends State<TasksScreen> with WidgetsBindingObserver {
                       onTap: saving ? null : () => edit(task),
                       trailing: Wrap(
                         children: [
+                          if (task.isCompleted &&
+                              widget.service.supportsExplicitRepeats)
+                            IconButton(
+                              tooltip:
+                                  'Schedule next occurrence of ${task.title}',
+                              icon: const Icon(Icons.repeat),
+                              onPressed: saving ? null : () => repeat(task),
+                            ),
                           IconButton(
                             tooltip: priorities.contains(task.id)
                                 ? 'Remove priority for $dateLabel'

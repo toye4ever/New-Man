@@ -1,3 +1,4 @@
+import '../domain/task_recurrence.dart';
 import '../domain/task.dart';
 
 abstract interface class TaskRepository {
@@ -10,4 +11,14 @@ abstract interface class TaskRepository {
   Future<void> selectDailyPriority(DateTime date, String taskId);
   Future<void> unselectDailyPriority(DateTime date, String taskId);
   Future<void> reorderDailyPriorities(DateTime date, List<String> taskIds);
+}
+
+/// Optional capability for atomic, explicit repeats of completed tasks.
+abstract interface class RepeatingTaskRepository {
+  Future<Task> repeatCompletedTask({
+    required Task source,
+    required TaskRecurrence rule,
+    required DateTime today,
+    required DateTime now,
+  });
 }
