@@ -210,3 +210,30 @@ MAIN/LAUNCHER activities/aliases with conflicting label overrides. Source XML an
 synthetic checker tests do not execute AGP merging or inspect a new APK. Those
 remain exact-head CI gates; actual Galaxy launcher presentation remains NOT RUN.
 A visible Dev label helps selection but never substitutes for package/hash proof.
+
+
+## Native library and dormant-reminder containment
+
+The existing candidate checker now inspects packaged `.so` entries without
+extracting or executing them. Each must be under `lib/arm64-v8a/`, have a unique
+ZIP name and a 64-byte ELF header identifying a little-endian ELF64 AArch64 shared
+object. Flutter's engine is required in both variants; release additionally
+requires `libapp.so`, while Debug may use JIT without it. Only the first 64 bytes
+per library are read. Synthetic fixtures cover missing/duplicate libraries,
+wrong ABI/path, x64/32-bit headers and truncation. The existing local historical
+public APK passed this header-only check; it is not the new candidate.
+
+Merged-manifest checks also reject POST_NOTIFICATIONS, SCHEDULE_EXACT_ALARM and
+USE_EXACT_ALARM declarations (including uses-permission-sdk-23), known task
+reminder receivers and the task-reminder broadcast action. These boundaries match
+the still-unregistered foundation; any future reviewed wiring must explicitly
+revisit them. This unit adds no permission or native/app behavior.
+
+The workflow already calls this checker for Debug and unsigned Release; no
+workflow changes are needed. The new gate has not run against a new exact-head
+APK yet. Header inspection does not verify all ELF segments, full ZIP payload
+integrity, runtime linking, 16 KB compatibility/alignment or hardware behavior.
+It does not prove Debug's signer/certificate identity. Release absence of signing
+material remains the separate unsigned-container check, not a claim of signed
+release provenance. Record compiled-manifest, container, native-header and actual
+device evidence separately; do not infer device qualification from this gate.

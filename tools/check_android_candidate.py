@@ -4,6 +4,8 @@
 import argparse
 from pathlib import Path
 import subprocess
+import struct
+import zipfile
 import sys
 from xml.etree import ElementTree
 
@@ -15,6 +17,33 @@ ACCESSIBILITY_PERMISSION = "android.permission.BIND_ACCESSIBILITY_SERVICE"
 GUARD_SERVICE = "com.newman.newmanapp.GuardAccessibilityService"
 
 
+def verify_native_libraries(apk: Path, variant: str) -> list[str]:
+    """Check bounded ELF headers, not linker correctness, alignment or signatures."""
+    failures = []
+    with zipfile.ZipFile(apk) as archive:
+        libraries = [entry for entry in archive.infolist() if entry.filename.endswith(".so")]
+        names = [entry.filename for entry in libraries]
+        if len(names) != len(set(names)):
+            failures.append("Duplicate native library ZIP entries.")
+        required = {"lib/arm64-v8a/libflutter.so"}
+        if variant == "release":
+            required.add("lib/arm64-v8a/libapp.so")
+        for missing in sorted(required - set(names)):
+            failures.append(f"Missing required ARM64 library: {missing}.")
+        for entry in libraries:
+            parts = entry.filename.split("/")
+            if len(parts) != 3 or parts[:2] != ["lib", "arm64-v8a"]:
+                failures.append(f"Unexpected native library ABI/path: {entry.filename}.")
+                continue
+            with archive.open(entry) as library:
+                header = library.read(64)
+            if (len(header) != 64 or header[:7] != b"\x7fELF\x02\x01\x01"
+                    or struct.unpack_from("<HHI", header, 16) != (3, 183, 1)
+                    or struct.unpack_from("<H", header, 52)[0] != 64):
+                failures.append(f"Expected ELF64 little-endian AArch64 shared object: {entry.filename}.")
+    return failures
+
+
 def verify_manifest(root: ElementTree.Element, variant: str) -> list[str]:
     if root.tag != "manifest":
         return ["Input is not an Android manifest."]
@@ -22,9 +51,23 @@ def verify_manifest(root: ElementTree.Element, variant: str) -> list[str]:
     failures = []
     if root.get("package") != expected_id:
         failures.append(f"Expected app ID {expected_id}; found {root.get('package')!r}.")
+    forbidden_permissions = {
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_EXACT_ALARM",
+    }
+    for permission in list(root.findall("uses-permission")) + list(root.findall("uses-permission-sdk-23")):
+        if permission.get(ANDROID + "name") in forbidden_permissions:
+            failures.append("Dormant reminders must not declare notification/exact-alarm permissions.")
     app = root.find("application")
     if app is None:
         return failures + ["Application declaration is missing."]
+    for receiver in app.findall("receiver"):
+        if receiver.get(ANDROID + "name", "").split(".")[-1] in {
+            "TaskReminderAlarmReceiver", "TaskReminderSystemReceiver"
+        } or any(action.get(ANDROID + "name") == "com.newman.newmanapp.TASK_REMINDER_V1"
+                 for action in receiver.findall("./intent-filter/action")):
+            failures.append("Dormant task reminder receiver must not be registered.")
     expected_label = "New Man Dev" if variant == "debug" else "New Man Beta"
     if app.get(ANDROID + "label") != expected_label:
         failures.append(f"Expected application label {expected_label!r}.")
@@ -89,13 +132,14 @@ def main() -> int:
             check=True, capture_output=True, text=True, encoding="utf-8", timeout=60,
         )
         errors = verify_manifest(ElementTree.fromstring(result.stdout), opts.variant)
-    except (OSError, subprocess.SubprocessError, ElementTree.ParseError) as error:
-        print(f"Could not inspect merged Android manifest: {error}", file=sys.stderr)
+        errors.extend(verify_native_libraries(opts.apk, opts.variant))
+    except (OSError, subprocess.SubprocessError, ElementTree.ParseError, zipfile.BadZipFile, RuntimeError, EOFError) as error:
+        print(f"Could not inspect Android candidate: {error}", file=sys.stderr)
         return 2
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1
-    print(f"{opts.variant.capitalize()} APK app ID, launcher label, backup policy, and Guard isolation verified.")
+    print(f"{opts.variant.capitalize()} APK app ID, launcher label, backup policy, Guard/reminder containment and ARM64 ELF headers verified.")
     return 0
 
 
