@@ -1,14 +1,16 @@
 """Unit tests for the New Man Android candidate guardrail."""
 import unittest
+from pathlib import Path
 from xml.etree import ElementTree
 
 from check_android_candidate import verify_manifest
 
 
-def manifest(package="com.newman.newmanapp.beta", app_attrs="", inside=""):
+def manifest(package="com.newman.newmanapp.beta", app_attrs="", inside="", label=None):
+    label = label if label is not None else ("New Man Dev" if package.endswith(".dev") else "New Man Beta")
     return ElementTree.fromstring(
         f'<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="{package}">'
-        f'<application android:allowBackup="false" {app_attrs}>{inside}</application></manifest>'
+        f'<application android:allowBackup="false" android:label="{label}" {app_attrs}>{inside}</application></manifest>'
     )
 
 
@@ -19,6 +21,34 @@ GUARD = (
 
 
 class ManifestTests(unittest.TestCase):
+    def test_debug_source_override_is_label_only(self):
+        root = Path(__file__).resolve().parents[1]
+        debug = ElementTree.parse(root / "android/app/src/debug/AndroidManifest.xml").getroot().find("application")
+        main = ElementTree.parse(root / "android/app/src/main/AndroidManifest.xml").getroot().find("application")
+        self.assertEqual(debug.attrib, {
+            "{http://schemas.android.com/apk/res/android}label": "New Man Dev",
+            "{http://schemas.android.com/tools}replace": "android:label",
+        })
+        self.assertEqual(main.get("{http://schemas.android.com/apk/res/android}label"), "New Man Beta")
+
+    def test_debug_requires_distinct_visible_label(self):
+        node = manifest(package="com.newman.newmanapp.beta.dev", app_attrs='android:debuggable="true"', inside=GUARD)
+        self.assertFalse(verify_manifest(node, "debug"))
+        for label in ("New Man Beta", "", "@string/unresolved"):
+            node.find("application").set("{http://schemas.android.com/apk/res/android}label", label)
+            self.assertIn("Expected application label", verify_manifest(node, "debug")[0])
+
+    def test_release_label_is_unchanged(self):
+        self.assertFalse(verify_manifest(manifest(), "release"))
+        self.assertTrue(verify_manifest(manifest(label="New Man Dev"), "release"))
+
+    def test_launcher_component_may_inherit_but_not_override_identity(self):
+        for kind in ("activity", "activity-alias"):
+            launcher = f'<{kind} android:name="example.Launcher"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></{kind}>'
+            self.assertFalse(verify_manifest(manifest(inside=launcher), "release"))
+            wrong = launcher.replace('android:name="example.Launcher"', 'android:name="example.Launcher" android:label="New Man Dev"')
+            self.assertTrue(verify_manifest(manifest(inside=wrong), "release"))
+
     def test_release_manifest_accepts_clean_beta_identity(self):
         self.assertEqual(verify_manifest(manifest(), "release"), [])
 

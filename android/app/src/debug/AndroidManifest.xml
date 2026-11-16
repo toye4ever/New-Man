@@ -1,11 +1,11 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
     <!-- The INTERNET permission is required for development. Specifically,
          the Flutter tool needs it to communicate with the running application
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- The unfinished Guard qualification service is debug-only. -->
-    <application>
+    <application android:label="New Man Dev" tools:replace="android:label">
         <service android:name=".GuardAccessibilityService" android:description="@string/guard_accessibility_description" android:exported="false" android:label="@string/guard_accessibility_label" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />

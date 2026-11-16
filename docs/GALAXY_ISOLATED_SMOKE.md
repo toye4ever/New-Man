@@ -17,7 +17,8 @@ Guard, Android notification delivery, offline audio, editions or partner sharing
   **`.beta`** install: no replacement, uninstall, Clear storage or migration.
 - Clean means a separately authorized fresh `.beta.dev` install with no personal
   data. If `.beta.dev` already has useful data, stop; do not clear it for this test.
-- Both launcher icons may say **New Man Beta**. Confirm package identity using
+- This candidate must show **New Man Dev**; public beta stays **New Man Beta**.
+  Older candidates may share the Beta label. Confirm package identity using
   trusted installation/package evidence before launching; label/icon alone is
   insufficient. Unknown identity or personal data means STOP.
 - No sign-in, contacts, import, sharing, Accessibility, usage access, overlay or

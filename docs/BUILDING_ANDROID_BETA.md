@@ -195,3 +195,18 @@ is added. `.ci/verify-unsigned-release` now contains `enabled`, selecting the
 existing release-containment step after the unchanged debug checks. Runtime
 runner availability, compilation, unsigned container and compiled manifests for
 this exact combined candidate are pending CI. No capacity guarantee is made.
+
+
+## Distinct Android debug launcher label
+
+The debug manifest alone overrides `android:label` to `New Man Dev`, using
+`tools:replace="android:label"`. Android's documented
+[attribute merge rule](https://developer.android.com/build/manage-manifests#attribute_markers)
+keeps the higher-priority debug value without replacing the application node or
+other attributes/children. The main/public label remains `New Man Beta`; IDs,
+backups, Guard service containment and permission declarations are unchanged.
+The compiled-manifest checker now requires these exact variant labels and rejects
+MAIN/LAUNCHER activities/aliases with conflicting label overrides. Source XML and
+synthetic checker tests do not execute AGP merging or inspect a new APK. Those
+remain exact-head CI gates; actual Galaxy launcher presentation remains NOT RUN.
+A visible Dev label helps selection but never substitutes for package/hash proof.

@@ -25,6 +25,17 @@ def verify_manifest(root: ElementTree.Element, variant: str) -> list[str]:
     app = root.find("application")
     if app is None:
         return failures + ["Application declaration is missing."]
+    expected_label = "New Man Dev" if variant == "debug" else "New Man Beta"
+    if app.get(ANDROID + "label") != expected_label:
+        failures.append(f"Expected application label {expected_label!r}.")
+    for component in list(app.findall("activity")) + list(app.findall("activity-alias")):
+        launcher = any(
+            any(action.get(ANDROID + "name") == "android.intent.action.MAIN" for action in entry.findall("action"))
+            and any(category.get(ANDROID + "name") == "android.intent.category.LAUNCHER" for category in entry.findall("category"))
+            for entry in component.findall("intent-filter")
+        )
+        if launcher and component.get(ANDROID + "label", expected_label) != expected_label:
+            failures.append("Launcher component overrides the expected application label.")
     if app.get(ANDROID + "allowBackup") != "false":
         failures.append("Application must explicitly disable Android backup.")
     is_debuggable = app.get(ANDROID + "debuggable", "false")
@@ -84,7 +95,7 @@ def main() -> int:
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1
-    print(f"{opts.variant.capitalize()} APK app ID, backup policy, and Guard isolation verified.")
+    print(f"{opts.variant.capitalize()} APK app ID, launcher label, backup policy, and Guard isolation verified.")
     return 0
 
 
