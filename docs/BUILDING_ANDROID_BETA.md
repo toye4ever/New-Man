@@ -35,7 +35,7 @@ The Android configuration uses namespace com.newman.newmanapp, application ID co
 
 An unsigned APK is not the signed release download and cannot be installed as such. Do not add signing credentials to this repository. The public source does not include the owner's key and does not authorize publishing a newly signed artifact.
 
-Contributor debug builds use the same beta application ID in this retained configuration, unlike newer flavor proposals. Do not install them over an existing signed beta or uninstall that beta to resolve a signature mismatch. Use an emulator or separate test device with no beta data. Production app data is separate and is not automatically migrated.
+Contributor debug builds from the current source use `com.newman.newmanapp.beta.dev` so they can be installed alongside the signed beta, which retains `com.newman.newmanapp.beta`. Older debug builds may use the signed beta application ID; verify the APK identity before installing and never uninstall the signed beta to resolve a signature mismatch. Each package has separate app data; the developer build is not an upgrade or migration test for the signed beta.
 
 ## What is and is not verified
 

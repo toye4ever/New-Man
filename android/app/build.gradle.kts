@@ -28,6 +28,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Keep developer installs and their local data separate from the signed beta.
+            applicationIdSuffix = ".dev"
+        }
         release {
             signingConfig = null
             isMinifyEnabled = false
