@@ -61,3 +61,32 @@ flutter pub get --offline --enforce-lockfile
 flutter test --no-pub test/recoverable_kjv_file_test.dart test/translation_manager_test.dart
 flutter analyze --no-pub
 ```
+
+## Android/Windows path review — no device filesystem access
+
+[Repository](../lib/src/services/bible_version_repository.dart) appends
+`bibles/kjv.json` to `getApplicationSupportDirectory()`; [recovery storage](../lib/src/services/recoverable_kjv_file.dart)
+uses sibling `kjv.json.previous` and unique `kjv-install-*` directories under the
+same bibles parent. A first install need not have a previous copy. Legacy
+`.download` and orphan stages are ignored, never automatically promoted.
+
+The pinned `path_provider_android` 2.3.1 implementation uses Context `filesDir`.
+A typical owner-user `.beta.dev` path is
+`/data/user/0/com.newman.newmanapp.beta.dev/files/bibles/kjv.json`; `/data/data`
+may alias it and profiles/users can differ. Runtime provider resolution is
+authoritative. The `.beta` private directory is separate; no hard-coded Android
+root was introduced by this change.
+
+The pinned `path_provider_windows` 2.3.0 uses RoamingAppData plus sanitized
+executable CompanyName/ProductName (or executable-name fallback). Current
+[Runner.rc](../windows/runner/Runner.rc) declares `com.example` / `New Man`, yielding
+ordinary `%APPDATA%\com.example\New Man\bibles\kjv.json`. This is not the source
+checkout or Android path. Other binaries can supply different version resources;
+Windows debug/release with matching resources may share this directory, so do
+not assume Android `.dev` isolation on Windows. Dependency versions are recorded
+in [pubspec.lock](../pubspec.lock); source review used their pinned implementations.
+
+Do not move/delete/repair real files using these examples. Actual Android/Windows
+rename, storage-exhaustion and power-cut qualification remain pending. The
+[Galaxy smoke](GALAXY_ISOLATED_SMOKE.md) uses ordinary reading only, leaving failure
+injection to synthetic temporary files and no personal data.
