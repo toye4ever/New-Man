@@ -14,7 +14,7 @@ concurrency:
 jobs:
   debug-arm64:
     if: github.repository == 'toye4ever/New-Man' && github.ref == 'refs/heads/mvp/nov-17'
-    runs-on: macos-15
+    runs-on: macos-15-intel
     timeout-minutes: 30
     defaults:
       run:
@@ -35,14 +35,15 @@ jobs:
           printf 'GRADLE_USER_HOME=%s\n' "$GRADLE_USER_HOME" >> "$GITHUB_ENV"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test "$(uname -s)" = Darwin
-          test "$(uname -m)" = arm64
+          test "$(uname -m)" = x86_64
           python3 tools/check_android_ci_sdk.py "${ANDROID_HOME:?Runner SDK is missing}" --host-tag darwin-x86_64
-          test -x "${JAVA_HOME_21_arm64:?Preinstalled ARM64 JDK 21 is missing}/bin/java"
-          java_properties=$("$JAVA_HOME_21_arm64/bin/java" -XshowSettings:properties -version 2>&1)
+          test -x "${JAVA_HOME_21_X64:?Preinstalled x64 JDK 21 is missing}/bin/java"
+          java_properties=$("$JAVA_HOME_21_X64/bin/java" -XshowSettings:properties -version 2>&1)
           printf '%s\n' "$java_properties"
           printf '%s\n' "$java_properties" | grep -E 'java.specification.version = 21$'
-          echo "JAVA_HOME=$JAVA_HOME_21_arm64" >> "$GITHUB_ENV"
-          echo "$JAVA_HOME_21_arm64/bin" >> "$GITHUB_PATH"
+          printf '%s\n' "$java_properties" | grep -E 'os.arch = (x86_64|amd64)$'
+          echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_21_X64/bin" >> "$GITHUB_PATH"
           "$ANDROID_HOME/ndk/28.2.13676358/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang" --version
           # Override the runner's default NDK 27/29 aliases for native hooks.
           for ndk_variable in ANDROID_NDK ANDROID_NDK_HOME ANDROID_NDK_ROOT ANDROID_NDK_LATEST_HOME; do

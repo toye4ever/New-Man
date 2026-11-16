@@ -65,7 +65,7 @@ flows. The historical beta predates containment and is not a new candidate.
 ## Bounded feature-branch Android CI
 
 `android-feature-check.yml` runs only for pushes to this repository's
-`mvp/nov-17` branch, on the standard `macos-15` ARM64 runner with read-only contents
+`mvp/nov-17` branch, on the standard `macos-15-intel` x64 runner with read-only contents
 permission. It does not use a larger/xlarge runner. It pins the checkout action to
 a full commit SHA and fetches Flutter's official
 `refs/tags/3.44.8` tag, retaining its name in the shallow clone. Both the tag target
@@ -79,9 +79,9 @@ custom signing, artifact upload, device operation, or use of stored secrets.
 The existing Windows workflow remains a separate check.
 
 Preflight requires Android platform 36, build-tools 36.0.0, platform-tools,
-`apkanalyzer`, NDK 28.2.13676358 and ARM64 JDK 21 already installed on the runner.
-It asserts macOS/ARM64, checks Java's major version, and points job-local NDK aliases at the pinned package rather than the runner default. The NDK host path is
-`darwin-x86_64`, including on Apple Silicon; these macOS NDK tools are fat
+`apkanalyzer`, NDK 28.2.13676358 and x64 JDK 21 already installed on the runner.
+It asserts macOS/x86_64, checks Java's major version and x64 architecture, and points job-local NDK aliases at the pinned package rather than the runner default. The NDK host path is
+`darwin-x86_64`, also used on the earlier Apple Silicon host; these macOS NDK tools are fat
 binaries ([NDK host documentation](https://developer.android.com/ndk/guides/other_build_systems)).
 The script also accepts an explicit Linux host tag for local preflight checks;
 a Linux toolchain cannot pass the macOS check.
@@ -93,7 +93,7 @@ network access. No SDK archive sideload or retry of denied cloud SDK downloads
 is added. Shell commands use macOS-compatible tools, including `shasum` for the
 resulting APK hash.
 
-The [macOS 15 ARM64 runner inventory](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-arm64-Readme.md)
+The [macOS 15 x64 runner inventory](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-Readme.md)
 checked on November 16, 2026 lists platform 36, build-tools 36.0.0,
 platform-tools, NDK 28.2.13676358 and JDK 21. Runner inventory may change, so the
 actual preflight result remains authoritative. Local synthetic preflight tests
@@ -140,9 +140,9 @@ loader, signing secret or assignment to the debug signer. This CI unit changes
 no Android build configuration, permissions or signing behavior. Debug builds
 and their existing manifest check still run first and are unchanged.
 
-The final workflow step runs only when a later reviewed feature-branch commit
+The final workflow step runs only when the checked-out feature-branch commit
 contains `.ci/verify-unsigned-release` with the exact text `enabled` (a trailing
-newline is fine). That marker is intentionally absent in this commit. To request
+newline is fine). The marker is enabled on this feature-branch candidate. To request
 the extra gate, create that file locally and include it in the authorized
 `mvp/nov-17` candidate commit; the existing push-only, repository/branch-guarded
 workflow then evaluates the checked-out marker. Remove it in a later commit to
@@ -171,5 +171,27 @@ uploaded, installed, signed, released or deployed. No secrets are needed.
 An unsigned release candidate is a build/containment check, not an installable
 production release or hardware qualification. The real debug build at published
 `e99ee2a` passed in run 43962308608; it provides no evidence that this optional
-release path has run. Exact-head release CI remains pending opt-in/publication.
+release path has run. Exact-head release CI remains pending publication and runner execution.
 The private debug acceptance commit `fe15c13` remains separate and unchanged.
+
+
+## Intel host attempt after ARM runner capacity failure
+
+Run 43966107083 on `7986836` ended cancelled before runner acquisition; the public
+annotation reported constrained macOS ARM capacity, not an app compile failure
+(parent evidence). This next candidate selects the standard `macos-15-intel`
+runner and asserts Darwin/x86_64. It uses preinstalled `JAVA_HOME_21_X64`, asserts
+Java 21 and x64 architecture, and retains `darwin-x86_64` NDK host tools. The
+independently hash-pinned Kitware CMake 3.22.1 universal archive is unchanged and
+contains x86_64; actual CMake/Ninja execution is still checked before Flutter.
+The Android target remains ARM64 for both debug and unsigned release builds.
+
+The official x64 runner inventory checked November 16 lists API 36, build-tools
+36.0.0 and NDK 28.2.13676358. These are preflight requirements, not permission to
+install missing packages. Flutter tag/revision, lockfile, Gradle and CMake pins,
+read-only contents permission and the feature-only repository/ref guard remain
+unchanged. No larger runner, signing, binary upload, deployment or device action
+is added. `.ci/verify-unsigned-release` now contains `enabled`, selecting the
+existing release-containment step after the unchanged debug checks. Runtime
+runner availability, compilation, unsigned container and compiled manifests for
+this exact combined candidate are pending CI. No capacity guarantee is made.
