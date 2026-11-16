@@ -22,6 +22,11 @@ class ManifestTests(unittest.TestCase):
     def test_release_manifest_accepts_clean_beta_identity(self):
         self.assertEqual(verify_manifest(manifest(), "release"), [])
 
+    def test_release_rejects_test_only_and_shell_profiling(self):
+        self.assertTrue(verify_manifest(manifest(app_attrs='android:testOnly="true"'), "release"))
+        self.assertTrue(verify_manifest(manifest(inside='<profileable android:shell="true"/>'), "release"))
+        self.assertFalse(verify_manifest(manifest(inside='<profileable android:shell="false"/>'), "release"))
+
     def test_release_manifest_fails_for_service_even_when_not_exported(self):
         self.assertIn("unqualified accessibility", verify_manifest(manifest(inside=GUARD), "release")[0])
 

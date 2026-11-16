@@ -31,6 +31,12 @@ def verify_manifest(root: ElementTree.Element, variant: str) -> list[str]:
     if is_debuggable != ("true" if variant == "debug" else "false"):
         failures.append(f"Unexpected android:debuggable={is_debuggable!r}.")
 
+    if variant == "release":
+        if app.get(ANDROID + "testOnly", "false") != "false":
+            failures.append("Release candidate must not be test-only.")
+        if any(node.get(ANDROID + "shell", "false") != "false" for node in app.findall("profileable")):
+            failures.append("Release candidate must not allow shell profiling.")
+
     def accessibility_service(service: ElementTree.Element) -> bool:
         return (
             service.get(ANDROID + "permission") == ACCESSIBILITY_PERMISSION

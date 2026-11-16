@@ -105,3 +105,15 @@ jobs:
           set -euo pipefail
           python3 tools/check_android_candidate.py debug build/app/outputs/flutter-apk/app-debug.apk --apkanalyzer "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
           shasum -a 256 build/app/outputs/flutter-apk/app-debug.apk
+      - name: Optionally check unsigned release ARM64 candidate
+        if: hashFiles('.ci/verify-unsigned-release') != ''
+        run: |
+          set -euo pipefail
+          test "$(cat .ci/verify-unsigned-release)" = enabled
+          grep -Fq 'signingConfig = null' android/app/build.gradle.kts
+          env 'ORG_GRADLE_PROJECT_android.builder.sdkDownload=false' flutter build apk --release --target-platform android-arm64 --no-pub
+          apk=build/app/outputs/flutter-apk/app-release.apk
+          python3 tools/check_unsigned_apk.py "$apk"
+          python3 tools/check_android_candidate.py release "$apk" --apkanalyzer "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
+          shasum -a 256 "$apk"
+          git diff --exit-code -- pubspec.lock android/app/build.gradle.kts android/settings.gradle.kts android/gradle/wrapper/gradle-wrapper.properties

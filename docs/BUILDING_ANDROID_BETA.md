@@ -131,3 +131,45 @@ PATH includes its bin directory and ignored `android/local.properties` points
 Local Linux checks verify the real archive hash, safe extraction, universal binary
 layout, YAML and Bash; macOS execution, Ninja availability and AGP selection remain
 CI checks. See failed [run 43955599219](https://github.com/toye4ever/New-Man/actions/runs/43955599219).
+
+## Optional unsigned release build gate
+
+The repository's `android/app/build.gradle.kts` explicitly sets release
+`signingConfig = null`. Source inspection found no release keystore-property
+loader, signing secret or assignment to the debug signer. This CI unit changes
+no Android build configuration, permissions or signing behavior. Debug builds
+and their existing manifest check still run first and are unchanged.
+
+The final workflow step runs only when a later reviewed feature-branch commit
+contains `.ci/verify-unsigned-release` with the exact text `enabled` (a trailing
+newline is fine). That marker is intentionally absent in this commit. To request
+the extra gate, create that file locally and include it in the authorized
+`mvp/nov-17` candidate commit; the existing push-only, repository/branch-guarded
+workflow then evaluates the checked-out marker. Remove it in a later commit to
+skip the gate again. This is not a workflow dispatch, arbitrary-ref trigger,
+settings change or request to publish anything now. The step uses `hashFiles`
+only at the documented [step-if context](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#context-availability).
+The existing standard macOS runner, time limit, read-only permissions, exact
+Flutter/Gradle/CMake pins and preinstalled-only SDK preflight remain in force.
+
+The gate builds `flutter build apk --release --target-platform android-arm64
+--no-pub`, with SDK auto-download disabled. The pinned Flutter Gradle plugin
+copies the variant output into `build/app/outputs/flutter-apk/app-release.apk`
+even when the original Gradle output is unsigned. Runtime CI must establish the
+actual output and complete compilation; no new release APK was built locally.
+
+`tools/check_unsigned_apk.py` rejects JAR signing material and the APK signing
+block before the ZIP central directory. Unknown/ZIP64/ambiguous layouts fail
+closed. Synthetic fixtures cover unsigned, v1-signature entries, signing-block
+containers, malformed/missing manifest and trailing bytes. This is absence-of-
+signing evidence for a conventional APK, not signature authenticity validation.
+The existing compiled manifest checker then requires the beta package (no `.dev`),
+explicit backups off, no debuggable/test-only/shell-profileable flags and no
+Guard/accessibility declaration. The APK hash is printed, but no binary is
+uploaded, installed, signed, released or deployed. No secrets are needed.
+
+An unsigned release candidate is a build/containment check, not an installable
+production release or hardware qualification. The real debug build at published
+`e99ee2a` passed in run 43962308608; it provides no evidence that this optional
+release path has run. Exact-head release CI remains pending opt-in/publication.
+The private debug acceptance commit `fe15c13` remains separate and unchanged.
