@@ -67,6 +67,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   List<_Verse> _chapterNarrationVerses = const [];
   int? _narrationCursor;
   int _narrationGeneration = 0;
+  bool _disposing = false;
   _NarrationPhase _narrationPhase = _NarrationPhase.idle;
   _ChapterRepeat _chapterRepeat = _ChapterRepeat.off;
   bool _copied = false;
@@ -134,11 +135,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   @override
   void dispose() {
+    _disposing = true;
     widget.controller.removeListener(_onControllerChanged);
     _goToFocusNode.removeListener(_onGoToFocusChanged);
     _copiedTimer?.cancel();
     _targetTimer?.cancel();
-    unawaited(_audio.stop());
+    _narrationGeneration++;
+    unawaited(_tryStopNarration(_narrationGeneration));
     _goToController.dispose();
     _goToFocusNode.dispose();
     _scrollController.dispose();
@@ -169,20 +172,27 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Future<void> _loadAudioPreferences() async {
-    final prefs = await widget.controller.audioPreferencesRepository.load();
-    final voices = await _audio.getVoices();
-    final selected = voices.any((v) => v.key == prefs.voiceKey)
-        ? prefs.voiceKey
-        : voices.firstOrNull?.key;
-    if (selected != null) {
-      await _audio.setVoice(voices.firstWhere((v) => v.key == selected));
-    }
-    if (mounted) {
+    final generation = _narrationGeneration;
+    try {
+      final prefs = await widget.controller.audioPreferencesRepository.load();
+      if (!_isCurrentNarration(generation)) return;
+      setState(() => _speechRate = prefs.playbackRate);
+      final voices = await _audio.getVoices();
+      if (!_isCurrentNarration(generation)) return;
+      final selected = voices.any((v) => v.key == prefs.voiceKey)
+          ? prefs.voiceKey
+          : voices.firstOrNull?.key;
+      if (selected != null) {
+        await _audio.setVoice(voices.firstWhere((v) => v.key == selected));
+      }
+      if (!_isCurrentNarration(generation)) return;
       setState(() {
-        _speechRate = prefs.playbackRate;
         _voices = voices;
         _voiceKey = selected;
       });
+    } catch (_) {
+      // Voice discovery is optional. Keep the text reader available and allow
+      // the user to explicitly try narration with the platform default voice.
     }
   }
 
@@ -1248,6 +1258,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Future<void> _changeTranslation(BibleTranslation value) async {
     await _stopAudio();
+    if (!mounted) return;
     setState(() {
       _translation = value;
       _passagesFuture = _loadCurrent();
@@ -1280,33 +1291,40 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Future<void> _changeVoice(String key) async {
     final voice = _voices.firstWhere((v) => v.key == key);
-    final restart = _narrationPhase == _NarrationPhase.playing;
-    final cursor = _narrationCursor;
-    if (restart) {
-      final generation = ++_narrationGeneration;
-      await _audio.stop();
-      if (generation != _narrationGeneration) return;
-    }
-    await _audio.setVoice(voice);
-    _voiceKey = key;
-    await _saveAudioPreferences();
-    if (mounted) setState(() {});
-    if (restart && cursor != null) unawaited(_startNarrationAt(cursor));
+    await _updateNarrationSetting(
+      () => _audio.setVoice(voice),
+      () => _voiceKey = key,
+    );
   }
 
   Future<void> _changeRate(double rate) async {
+    await _updateNarrationSetting(
+      () => _audio.setRate(rate),
+      () => _speechRate = rate,
+    );
+  }
+
+  Future<void> _updateNarrationSetting(
+    Future<void> Function() apply,
+    VoidCallback update,
+  ) async {
     final restart = _narrationPhase == _NarrationPhase.playing;
     final cursor = _narrationCursor;
-    if (restart) {
-      final generation = ++_narrationGeneration;
-      await _audio.stop();
-      if (generation != _narrationGeneration) return;
+    final generation = ++_narrationGeneration;
+    if (restart && !await _tryStopNarration(generation)) return;
+    if (!_isCurrentNarration(generation)) return;
+    try {
+      await apply();
+      if (!_isCurrentNarration(generation)) return;
+      setState(update);
+      await _saveAudioPreferences();
+    } catch (_) {
+      _handleNarrationFailure(generation);
+      return;
     }
-    _speechRate = rate;
-    await _audio.setRate(rate);
-    await _saveAudioPreferences();
-    if (mounted) setState(() {});
-    if (restart && cursor != null) unawaited(_startNarrationAt(cursor));
+    if (restart && cursor != null && _isCurrentNarration(generation)) {
+      unawaited(_startNarrationAt(cursor));
+    }
   }
 
   Future<void> _saveAudioPreferences() => widget
@@ -1320,8 +1338,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Future<void> _beginNarration(List<_Verse> verses, int startIndex) async {
     final generation = ++_narrationGeneration;
-    await _audio.stop();
-    if (!mounted || generation != _narrationGeneration) return;
+    if (!await _tryStopNarration(generation)) return;
     _chapterNarrationVerses = verses;
     _autoFollowNarration = true;
     await _startNarrationAt(startIndex);
@@ -1348,6 +1365,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
           });
           _revealNarratedVerse(force: index == nextStart);
           await _audio.setRate(_speechRate);
+          // A stop, route change or verse jump may occur while the platform
+          // rate is being configured. Never start a stale utterance.
+          if (!_isCurrentNarration(generation)) break;
           await _audio.speak('${verse.number}. ${verse.text}');
         }
         if (!mounted || generation != _narrationGeneration) break;
@@ -1363,23 +1383,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
         }
         break;
       }
-    } finally {
-      if (mounted && generation == _narrationGeneration) {
-        setState(() {
-          _narratedVerse = null;
-          _narrationCursor = null;
-          _narrationPhase = _NarrationPhase.idle;
-        });
-      }
+    } catch (_) {
+      _handleNarrationFailure(generation);
+      return;
     }
+    if (_isCurrentNarration(generation)) setState(_clearNarration);
   }
 
   Future<void> _pauseNarration() async {
     final cursor = _narrationCursor;
     if (cursor == null) return;
     final generation = ++_narrationGeneration;
-    await _audio.stop();
-    if (!mounted || generation != _narrationGeneration) return;
+    if (!await _tryStopNarration(generation)) return;
     setState(() => _narrationPhase = _NarrationPhase.paused);
   }
 
@@ -1404,8 +1419,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       return;
     }
     final generation = ++_narrationGeneration;
-    await _audio.stop();
-    if (!mounted || generation != _narrationGeneration) return;
+    if (!await _tryStopNarration(generation)) return;
     await _startNarrationAt(target);
   }
 
@@ -1453,15 +1467,41 @@ class _ReaderScreenState extends State<ReaderScreen> {
     });
   }
 
+  bool _isCurrentNarration(int generation) =>
+      mounted && !_disposing && generation == _narrationGeneration;
+
+  Future<bool> _tryStopNarration(int generation) async {
+    try {
+      await _audio.stop();
+      return _isCurrentNarration(generation);
+    } catch (_) {
+      _handleNarrationFailure(generation);
+      return false;
+    }
+  }
+
+  void _clearNarration() {
+    _narratedVerse = null;
+    _narrationCursor = null;
+    _chapterNarrationVerses = const [];
+    _narrationPhase = _NarrationPhase.idle;
+  }
+
+  void _handleNarrationFailure(int generation) {
+    if (!_isCurrentNarration(generation)) return;
+    setState(_clearNarration);
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      const SnackBar(
+        content: Text('Narration is unavailable. You can try again.'),
+      ),
+    );
+  }
+
   Future<void> _stopAudio() async {
-    _narrationGeneration++;
-    await _audio.stop();
-    if (mounted) {
+    final generation = ++_narrationGeneration;
+    if (await _tryStopNarration(generation)) {
       setState(() {
-        _narratedVerse = null;
-        _narrationCursor = null;
-        _chapterNarrationVerses = const [];
-        _narrationPhase = _NarrationPhase.idle;
+        _clearNarration();
         _chapterRepeat = _ChapterRepeat.off;
       });
     }

@@ -1484,6 +1484,75 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets('Pause suppresses a verse waiting for platform rate setup', (
+    tester,
+  ) async {
+    final audio = _ControlledAudioService();
+    await _pumpNarrationTestReader(tester, audio);
+
+    final rateSetup = Completer<void>();
+    audio.pendingRate = rateSetup;
+    await tester.tap(find.byTooltip('Play narration'));
+    await tester.pumpAndSettle();
+    expect(audio.spoken, isEmpty);
+
+    await tester.tap(find.byTooltip('Pause narration'));
+    await tester.pumpAndSettle();
+    rateSetup.complete();
+    await tester.pumpAndSettle();
+    expect(audio.spoken, isEmpty);
+
+    audio.pendingRate = null;
+    await tester.tap(find.byTooltip('Play narration'));
+    await tester.pumpAndSettle();
+    expect(audio.spoken, ['1. One', '2. Two']);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('closing Reader invalidates a pending verse', (tester) async {
+    final audio = _ControlledAudioService();
+    await _pumpNarrationTestReader(tester, audio);
+    final rateSetup = Completer<void>();
+    audio.pendingRate = rateSetup;
+    await tester.tap(find.byTooltip('Play narration'));
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    rateSetup.complete();
+    await tester.pumpAndSettle();
+    expect(audio.spoken, isEmpty);
+    expect(audio.stopCalls, 2);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('platform audio failure leaves Reader usable and can retry', (
+    tester,
+  ) async {
+    final audio = _ControlledAudioService()
+      ..failVoiceDiscovery = true
+      ..failSpeech = true;
+    await _pumpNarrationTestReader(tester, audio);
+    expect(find.text('1 One'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byTooltip('Play narration'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(
+      find.text('Narration is unavailable. You can try again.'),
+      findsOneWidget,
+    );
+    expect(find.text('1 One'), findsOneWidget);
+    expect(find.byTooltip('Play narration'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    audio.failSpeech = false;
+    await tester.tap(find.byTooltip('Play narration'));
+    await tester.pumpAndSettle();
+    expect(audio.spoken, ['1. One', '2. Two']);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'Reader Search dismisses on Listen and Scripture selection, then reopens',
     (tester) async {
@@ -1667,6 +1736,37 @@ class _TextScriptureRepository implements ScriptureRepository {
       ScriptureTextResult(reference: reference.display, text: text);
 }
 
+Future<void> _pumpNarrationTestReader(
+  WidgetTester tester,
+  BibleAudioService audio,
+) async {
+  tester.view.physicalSize = const Size(390, 844);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  final controller = AppController(
+    repository: _MemoryPlanRepository(<ReadingPlan>[]),
+    versionRepository: _InstalledKjvRepository(),
+  );
+  await controller.load();
+  await tester.pumpWidget(
+    MaterialApp(
+      home: ReaderScreen(
+        controller: controller,
+        request: BibleReaderRequest.manual(
+          references: const [
+            ScriptureReference(book: 'Matthew', startChapter: 5),
+          ],
+        ),
+        audio: audio,
+        scriptureRepositoryFactory: (_) =>
+            _TextScriptureRepository('1 One\n2 Two'),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
 class _FakeAudioService implements BibleAudioService {
   _FakeAudioService({this.voices = const <TtsVoiceOption>[]});
   int stopCalls = 0;
@@ -1724,4 +1824,29 @@ class _QueuedAudioService extends _FakeAudioService {
   }
 
   void finishCurrent() => _current?.complete();
+}
+
+class _ControlledAudioService extends _FakeAudioService {
+  Completer<void>? pendingRate;
+  bool failVoiceDiscovery = false;
+  bool failSpeech = false;
+  final spoken = <String>[];
+
+  @override
+  Future<List<TtsVoiceOption>> getVoices() async {
+    if (failVoiceDiscovery) throw StateError('Voice discovery failed');
+    return super.getVoices();
+  }
+
+  @override
+  Future<void> setRate(double rate) async {
+    final pending = pendingRate;
+    if (pending != null) await pending.future;
+  }
+
+  @override
+  Future<void> speak(String text) async {
+    if (failSpeech) throw StateError('Speech failed');
+    spoken.add(text);
+  }
 }
