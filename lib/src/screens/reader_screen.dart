@@ -964,6 +964,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
+              _voices.where((voice) => voice.key == _voiceKey).firstOrNull?.networkUseLabel ??
+                  'System voice · network use unknown',
+              key: const ValueKey('narration-network-status'),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            Text(
               '${_current.display} · Verse ${verse?.number ?? '-'} of ${_chapterNarrationVerses.length}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

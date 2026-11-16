@@ -11,7 +11,21 @@ class TtsVoiceOption {
   final String name;
   final String locale;
   final Map<String, String> settings;
-  final bool networkRequired;
+
+  /// Null means the engine supplied no recognized network metadata.
+  final bool? networkRequired;
+
+  static bool? parseNetworkRequired(Object? value) => switch (value) {
+    true || 1 || '1' || 'true' => true,
+    false || 0 || '0' || 'false' => false,
+    _ => null,
+  };
+
+  String get networkUseLabel => switch (networkRequired) {
+    true => 'Internet required',
+    false => 'Device reports no network needed; offline unverified',
+    null => 'Network use unknown',
+  };
 
   String get label => locale.isEmpty ? name : '$name ($locale)';
 }
@@ -40,6 +54,7 @@ abstract interface class BibleAudioService {
 
   Future<void> stop();
 }
+
 enum AudioPlaybackState { idle, loading, playing, paused, stopped, error }
 
 class AudioPlaybackSnapshot {
@@ -49,5 +64,6 @@ class AudioPlaybackSnapshot {
   final String? message;
 
   bool get isActive =>
-      state == AudioPlaybackState.loading || state == AudioPlaybackState.playing;
+      state == AudioPlaybackState.loading ||
+      state == AudioPlaybackState.playing;
 }

@@ -89,7 +89,7 @@ class TtsService implements BibleAudioService {
           name: name,
           locale: locale,
           settings: settings,
-          networkRequired: map['network_required'] == 'true',
+          networkRequired: TtsVoiceOption.parseNetworkRequired(map['network_required']),
         ),
       );
     }

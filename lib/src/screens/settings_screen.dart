@@ -43,7 +43,7 @@ class SettingsScreen extends StatelessWidget {
             icon: Icons.record_voice_over,
             title: 'Voice and playback',
             subtitle:
-                'The reader lists voices installed by Android or Windows. Voice packs are managed in device settings, separately from Bible versions.',
+                'The reader lists voices reported by the device engine and shows their network requirements when known. Offline playback needs device verification. Voice packs are managed separately from Bible versions.',
           ),
           const SizedBox(height: 12),
           const _SettingTile(

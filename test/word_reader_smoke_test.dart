@@ -1600,6 +1600,40 @@ void main() {
     },
   );
 
+  testWidgets('reader labels unknown, local-reported and network voices truthfully', (tester) async {
+    final controller = AppController(
+      repository: _MemoryPlanRepository(<ReadingPlan>[]),
+      versionRepository: _InstalledKjvRepository(),
+    );
+    await controller.load();
+    final audio = _QueuedAudioService(voices: const [
+      TtsVoiceOption(key: 'unknown', name: 'Unknown', locale: 'en-US', settings: {}, networkRequired: null),
+      TtsVoiceOption(key: 'cloud', name: 'Cloud', locale: 'en-US', settings: {}, networkRequired: true),
+      TtsVoiceOption(key: 'local', name: 'Device', locale: 'en-US', settings: {}, networkRequired: false),
+    ]);
+    await tester.pumpWidget(MaterialApp(home: ReaderScreen(
+      controller: controller,
+      request: BibleReaderRequest.manual(references: const [ScriptureReference(book: 'Matthew', startChapter: 5)]),
+      audio: audio,
+      scriptureRepositoryFactory: (_) => _FakeScriptureRepository(),
+    )));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Listen'));
+    await tester.pump();
+    expect(find.text('Network use unknown'), findsOneWidget);
+    await tester.tap(find.text('Unknown (en-US)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cloud (en-US)').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Internet required'), findsOneWidget);
+    await tester.tap(find.text('Cloud (en-US)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Device (en-US)').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Device reports no network needed; offline unverified'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'voice picker exposes every platform voice returned by audio service',
     (tester) async {
