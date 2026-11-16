@@ -597,11 +597,19 @@ public final class GuardQualificationLeaseTest {
                 + String.join(",", GuardQualificationTargets.packageNames())
                 + "\"");
 
-        String manifest = readSource("android/app/src/main/AndroidManifest.xml");
-        assert occurrences(manifest, "<package android:name=") == 4;
+        String debugManifest = readSource("android/app/src/debug/AndroidManifest.xml");
+        String mainManifest = readSource("android/app/src/main/AndroidManifest.xml");
+        String profileManifest = readSource("android/app/src/profile/AndroidManifest.xml");
+        assert debugManifest.contains("android:name=\".GuardAccessibilityService\"");
+        assert debugManifest.contains("android.permission.BIND_ACCESSIBILITY_SERVICE");
+        assert occurrences(debugManifest, "<package android:name=") == 4;
         for (String packageName : GuardQualificationTargets.packageNames()) {
-            assert manifest.contains("<package android:name=\"" + packageName + "\" />");
+            assert debugManifest.contains("<package android:name=\"" + packageName + "\" />");
+            assert !mainManifest.contains(packageName);
+            assert !profileManifest.contains(packageName);
         }
+        assert !mainManifest.contains("GuardAccessibilityService");
+        assert !profileManifest.contains("GuardAccessibilityService");
 
         String service = readSource(
                 "android/app/src/main/kotlin/com/newman/newmanapp/GuardAccessibilityService.kt");
