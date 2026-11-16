@@ -55,16 +55,30 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: flutter/flutter
-          ref: 058e0af2c2b57e369d905a03ac9748b0ebf543c6
+          ref: refs/tags/3.44.8
           path: .ci-flutter
           persist-credentials: false
           fetch-depth: 1
+          fetch-tags: true
       - name: Prepare pinned Flutter and lockfile dependencies
         run: |
           set -euo pipefail
           test "$(git -C .ci-flutter rev-parse HEAD)" = 058e0af2c2b57e369d905a03ac9748b0ebf543c6
+          test "$(git -C .ci-flutter rev-parse 'refs/tags/3.44.8^{commit}')" = 058e0af2c2b57e369d905a03ac9748b0ebf543c6
           echo "$GITHUB_WORKSPACE/.ci-flutter/bin" >> "$GITHUB_PATH"
           .ci-flutter/bin/flutter --version
+          .ci-flutter/bin/flutter --version --machine > "$RUNNER_TEMP/new-man-flutter-version.json"
+          python3 - "$RUNNER_TEMP/new-man-flutter-version.json" <<'PY'
+          import json
+          import sys
+          with open(sys.argv[1], encoding="utf-8") as report:
+              version = json.load(report)
+          actual = (version.get("frameworkVersion"), version.get("frameworkRevision"))
+          expected = ("3.44.8", "058e0af2c2b57e369d905a03ac9748b0ebf543c6")
+          if actual != expected:
+              raise SystemExit(f"Pinned Flutter version/revision mismatch: {actual!r}")
+          print("Flutter itself reports the pinned 3.44.8 version and revision.")
+          PY
           .ci-flutter/bin/flutter precache --android
           .ci-flutter/bin/flutter pub get --enforce-lockfile
           git diff --exit-code -- pubspec.lock

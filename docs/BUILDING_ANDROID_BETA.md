@@ -66,9 +66,14 @@ flows. The historical beta predates containment and is not a new candidate.
 
 `android-feature-check.yml` runs only for pushes to this repository's
 `mvp/nov-17` branch, on the standard `macos-15` ARM64 runner with read-only contents
-permission. It does not use a larger/xlarge runner. It pins checkout and Flutter
-to full commit SHAs and uses the source Gradle 9.1.0 wrapper and locked
-dependencies, rather than the runner's globally installed Gradle. The checked-out
+permission. It does not use a larger/xlarge runner. It pins the checkout action to
+a full commit SHA and fetches Flutter's official
+`refs/tags/3.44.8` tag, retaining its name in the shallow clone. Both the tag target
+and HEAD must equal `058e0af2c2b57e369d905a03ac9748b0ebf543c6`. Before Android
+precache or app dependency resolution, Flutter's own machine-readable report must
+confirm version 3.44.8 and that revision. No version file is invented or edited.
+The build uses the source Gradle 9.1.0 wrapper and locked dependencies, rather than
+the runner's globally installed Gradle. The checked-out
 commit is asserted against the event SHA. There is no release, deployment,
 custom signing, artifact upload, device operation, or use of stored secrets.
 The existing Windows workflow remains a separate check.
