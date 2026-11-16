@@ -82,3 +82,28 @@ settings as a shortcut. Before any executable launch:
 Every Windows compile/runtime row remains **NOT RUN**. Portable checks are the
 current evidence; real resource linking and provider behavior remain blockers to
 calling Windows developer installs qualified.
+
+## Feature-branch compiled identity gate
+
+[Windows feature identity workflow](../.github/workflows/windows-feature-identity.yml)
+uses standard `windows-latest`, following the existing Windows check's host,
+but only for this repository's `mvp/nov-17` push events. It has read-only contents
+permission, pinned checkout action, official Flutter 3.44.8 tag plus mandatory
+revision/self-report assertions, locked dependencies, a 30-minute bound and no
+signing, artifacts, main trigger or app launch. Android CI is unchanged. Build-tool
+APPDATA/LOCALAPPDATA/PUB_CACHE are redirected to runner-temp directories before
+Flutter starts; no existing user application storage is inspected or migrated.
+It builds Debug and Release, then
+[reads VERSIONINFO](../tools/read_windows_exe_identity.ps1) only from their exact
+expected executable paths. [Validation](../tools/check_windows_exe_identity.py)
+requires company, product, description, internal/original names, Debug flags and
+matching nonempty version fields. Missing/unexpected resources fail closed.
+
+Portable tests exercise synthetic JSON records and actual C preprocessing.
+PowerShell is unavailable on the local Linux executor: its source was reviewed,
+but no claim is made that its parser/FileVersionInfo path ran here. Workflow YAML,
+contexts and source restrictions were checked separately. The first published
+exact-head Windows run must establish PowerShell execution, resource compilation,
+EXE paths and metadata values. It still does not establish runtime provider paths
+or data isolation because it never launches the app. The owner-driven synthetic
+runtime checks above remain separate, unrun gates; do not test them on FRIDAY.

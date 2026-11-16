@@ -1,0 +1,79 @@
+name: Windows feature identity check
+
+on:
+  push:
+    branches: ['mvp/nov-17']
+
+permissions:
+  contents: read
+
+jobs:
+  compiled-identities:
+    if: github.repository == 'toye4ever/New-Man' && github.ref == 'refs/heads/mvp/nov-17'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - name: Check out the exact feature commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Require Windows x64 and isolate tool caches
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ((git rev-parse HEAD) -ne $env:GITHUB_SHA) { throw 'Source revision mismatch' }
+          if ($env:RUNNER_OS -ne 'Windows' -or $env:RUNNER_ARCH -ne 'X64') { throw 'Expected Windows x64' }
+          foreach ($name in @('APPDATA', 'LOCALAPPDATA', 'PUB_CACHE')) {
+            $path = Join-Path $env:RUNNER_TEMP "new-man-build-$name"
+            New-Item -ItemType Directory -Force -Path $path | Out-Null
+            "$name=$path" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          }
+      - name: Check out pinned official Flutter tag
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: flutter/flutter
+          ref: refs/tags/3.44.8
+          path: .ci-flutter
+          persist-credentials: false
+          fetch-depth: 1
+          fetch-tags: true
+      - name: Verify Flutter revision and locked dependencies
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $expected = '058e0af2c2b57e369d905a03ac9748b0ebf543c6'
+          if ((git -C .ci-flutter rev-parse HEAD) -ne $expected) { throw 'Flutter revision mismatch' }
+          if ((git -C .ci-flutter rev-parse 'refs/tags/3.44.8^{commit}') -ne $expected) { throw 'Flutter tag mismatch' }
+          & .\.ci-flutter\bin\flutter.bat --version
+          if ($LASTEXITCODE -ne 0) { throw 'Flutter bootstrap failed' }
+          $report = (& .\.ci-flutter\bin\flutter.bat --version --machine) -join "`n"
+          if ($LASTEXITCODE -ne 0) { throw 'Flutter version check failed' }
+          $version = $report | ConvertFrom-Json
+          if ($version.frameworkVersion -ne '3.44.8' -or $version.frameworkRevision -ne $expected) { throw 'Flutter self-report mismatch' }
+          & .\.ci-flutter\bin\flutter.bat precache --windows
+          if ($LASTEXITCODE -ne 0) { throw 'Windows engine preparation failed' }
+          & .\.ci-flutter\bin\flutter.bat pub get --enforce-lockfile
+          if ($LASTEXITCODE -ne 0) { throw 'Locked dependency preparation failed' }
+          git diff --exit-code -- pubspec.lock
+          if ($LASTEXITCODE -ne 0) { throw 'Lockfile changed' }
+      - name: Build Debug and Release without launching the app
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\.ci-flutter\bin\flutter.bat build windows --debug --no-pub
+          if ($LASTEXITCODE -ne 0) { throw 'Debug compilation failed' }
+          & .\.ci-flutter\bin\flutter.bat build windows --release --no-pub
+          if ($LASTEXITCODE -ne 0) { throw 'Release compilation failed' }
+      - name: Inspect compiled EXE identities only
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $report = Join-Path $env:RUNNER_TEMP 'new-man-compiled-identities.json'
+          & .\tools\read_windows_exe_identity.ps1 -DebugExecutable 'build/windows/x64/runner/Debug/scripture_planner.exe' -ReleaseExecutable 'build/windows/x64/runner/Release/scripture_planner.exe' -Report $report
+          python tools/check_windows_exe_identity.py "$report"
+          if ($LASTEXITCODE -ne 0) { throw 'Compiled identity validation failed' }
+          git diff --exit-code -- pubspec.lock windows/runner/Runner.rc windows/runner/runner_identity.h windows/runner/main.cpp windows/runner/CMakeLists.txt windows/CMakeLists.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Build inputs changed' }
