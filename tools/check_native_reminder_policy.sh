@@ -7,7 +7,9 @@ classes=$(mktemp -d "${TMPDIR:-/tmp}/new-man-native-policy.XXXXXX")
 trap 'rm -rf "$classes"' EXIT
 "$java_bin/javac" -encoding UTF-8 -d "$classes" \
   android/app/src/main/java/com/newman/newmanapp/*.java \
-  android/app/src/test/java/com/newman/newmanapp/*.java
-for suite in TaskReminderNativePolicyTest GuardFeaturePolicyTest GuardQualificationLeaseTest; do
+  android/app/src/debug/java/com/newman/newmanapp/*.java \
+  android/app/src/test/java/com/newman/newmanapp/*.java \
+  android/app/src/testDebug/java/com/newman/newmanapp/*.java
+for suite in TaskReminderNativePolicyTest GuardFeaturePolicyTest GuardQualificationLeaseTest TaskReminderQualificationSessionTest; do
   "$java_bin/java" -ea -cp "$classes" "com.newman.newmanapp.$suite"
 done
