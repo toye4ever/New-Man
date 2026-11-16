@@ -8,22 +8,31 @@ class Task {
     DateTime? dueDate,
     DateTime? completedAt,
     this.timeBlock,
+    Iterable<TaskSubtask> subtasks = const [],
   }) : id = id.trim(),
        title = title.trim(),
        dueDate = dueDate == null
            ? null
            : DateTime(dueDate.year, dueDate.month, dueDate.day),
        completedAt = completedAt?.toUtc(),
+       subtasks = List.unmodifiable(subtasks),
        createdAt = createdAt.toUtc(),
        updatedAt = updatedAt.toUtc() {
     if (this.id.isEmpty) throw ArgumentError.value(id, 'id');
     if (this.title.isEmpty) throw ArgumentError.value(title, 'title');
+    if (this.subtasks.map((item) => item.id).toSet().length !=
+        this.subtasks.length) {
+      throw ArgumentError('Subtask IDs must be unique within a task.');
+    }
     if (isCompleted != (completedAt != null)) {
       throw ArgumentError('Completion state and timestamp must agree.');
     }
   }
 
   final TaskTimeBlock? timeBlock;
+  final List<TaskSubtask> subtasks;
+  int get completedSubtaskCount =>
+      subtasks.where((item) => item.isCompleted).length;
   final String id;
   final String title;
   final DateTime? dueDate;
@@ -42,8 +51,10 @@ class Task {
     DateTime? updatedAt,
     TaskTimeBlock? timeBlock,
     bool clearTimeBlock = false,
+    Iterable<TaskSubtask>? subtasks,
   }) => Task(
     id: id,
+    subtasks: subtasks ?? this.subtasks,
     timeBlock: clearTimeBlock ? null : (timeBlock ?? this.timeBlock),
     title: title ?? this.title,
     dueDate: clearDueDate ? null : (dueDate ?? this.dueDate),
@@ -52,6 +63,32 @@ class Task {
     createdAt: createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
+}
+
+class TaskSubtask {
+  TaskSubtask({
+    required String id,
+    required String title,
+    this.isCompleted = false,
+  }) : id = id.trim(),
+       title = title.trim() {
+    if (this.id.isEmpty) throw ArgumentError.value(id, 'id');
+    if (this.title.isEmpty) throw ArgumentError.value(title, 'title');
+  }
+
+  final String id;
+  final String title;
+  final bool isCompleted;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TaskSubtask &&
+      other.id == id &&
+      other.title == title &&
+      other.isCompleted == isCompleted;
+
+  @override
+  int get hashCode => Object.hash(id, title, isCompleted);
 }
 
 class TaskTimeBlock {

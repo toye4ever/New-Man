@@ -46,10 +46,14 @@ class TaskService extends ChangeNotifier {
   Future<List<DailyPriority>> loadDailyPriorities(DateTime date) =>
       repository.loadDailyPriorities(date);
 
+  TaskSubtask newSubtask({required String title, bool isCompleted = false}) =>
+      TaskSubtask(id: _uuid.v4(), title: title, isCompleted: isCompleted);
+
   Future<Task> createTask({
     required String title,
     DateTime? dueDate,
     TaskTimeBlock? timeBlock,
+    List<TaskSubtask> subtasks = const [],
   }) => _write(() async {
     final now = _clock().toUtc();
     final task = Task(
@@ -62,6 +66,7 @@ class TaskService extends ChangeNotifier {
       createdAt: now,
       updatedAt: now,
       timeBlock: timeBlock,
+      subtasks: subtasks,
     );
     await repository.saveTask(task);
     return task;
@@ -72,8 +77,14 @@ class TaskService extends ChangeNotifier {
     required String title,
     DateTime? dueDate,
     TaskTimeBlock? timeBlock,
+    List<TaskSubtask>? subtasks,
   }) => _write(() async {
     final task = await _current(original.id);
+    final subtaskChange =
+        subtasks != null && !listEquals(subtasks, original.subtasks);
+    if (subtaskChange && !listEquals(task.subtasks, original.subtasks)) {
+      throw const TaskSubtaskEditConflict();
+    }
     final titleChanged = title.trim() != original.title;
     final dueChanged = dueDate != original.dueDate;
     final before = original.timeBlock;
@@ -88,6 +99,7 @@ class TaskService extends ChangeNotifier {
         clearDueDate: dueChanged && dueDate == null,
         timeBlock: blockChanged ? timeBlock : null,
         clearTimeBlock: blockChanged && timeBlock == null,
+        subtasks: subtaskChange ? subtasks : null,
         updatedAt: _clock().toUtc(),
       ),
     );
@@ -149,4 +161,8 @@ class TaskService extends ChangeNotifier {
       _write(() => repository.unselectDailyPriority(date, taskId));
   Future<void> reorderDailyPriorities(DateTime date, List<String> taskIds) =>
       _write(() => repository.reorderDailyPriorities(date, taskIds));
+}
+
+class TaskSubtaskEditConflict implements Exception {
+  const TaskSubtaskEditConflict();
 }

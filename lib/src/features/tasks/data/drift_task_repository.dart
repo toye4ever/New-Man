@@ -1,4 +1,3 @@
-import '../../../core/database/app_database.dart';
 import '../application/task_repository.dart';
 import '../domain/task.dart';
 import 'local/task_dao.dart';
@@ -7,35 +6,46 @@ class DriftTaskRepository implements TaskRepository {
   const DriftTaskRepository(this.dao);
   final TaskDao dao;
 
-  Task _task(StoredTaskRecord record) => Task(
-    id: record.id,
-    title: record.title,
-    dueDate: record.dueDate == null
-        ? null
-        : localDateFromStorage(record.dueDate!),
-    timeBlock: record.plannedDate == null
-        ? null
-        : TaskTimeBlock(
-            plannedDate: localDateFromStorage(record.plannedDate!),
-            startMinutesLocal: record.startMinutesLocal!,
-            endMinutesLocal: record.endMinutesLocal!,
+  Task _task(StoredTaskWithSubtasks stored) {
+    final record = stored.task;
+    return Task(
+      id: record.id,
+      subtasks: [
+        for (final item in stored.subtasks)
+          TaskSubtask(
+            id: item.id,
+            title: item.title,
+            isCompleted: item.isCompleted,
           ),
-    isCompleted: record.isCompleted,
-    completedAt: record.completedAtUtcMicros == null
-        ? null
-        : DateTime.fromMicrosecondsSinceEpoch(
-            record.completedAtUtcMicros!,
-            isUtc: true,
-          ),
-    createdAt: DateTime.fromMicrosecondsSinceEpoch(
-      record.createdAtUtcMicros,
-      isUtc: true,
-    ),
-    updatedAt: DateTime.fromMicrosecondsSinceEpoch(
-      record.updatedAtUtcMicros,
-      isUtc: true,
-    ),
-  );
+      ],
+      title: record.title,
+      dueDate: record.dueDate == null
+          ? null
+          : localDateFromStorage(record.dueDate!),
+      timeBlock: record.plannedDate == null
+          ? null
+          : TaskTimeBlock(
+              plannedDate: localDateFromStorage(record.plannedDate!),
+              startMinutesLocal: record.startMinutesLocal!,
+              endMinutesLocal: record.endMinutesLocal!,
+            ),
+      isCompleted: record.isCompleted,
+      completedAt: record.completedAtUtcMicros == null
+          ? null
+          : DateTime.fromMicrosecondsSinceEpoch(
+              record.completedAtUtcMicros!,
+              isUtc: true,
+            ),
+      createdAt: DateTime.fromMicrosecondsSinceEpoch(
+        record.createdAtUtcMicros,
+        isUtc: true,
+      ),
+      updatedAt: DateTime.fromMicrosecondsSinceEpoch(
+        record.updatedAtUtcMicros,
+        isUtc: true,
+      ),
+    );
+  }
 
   @override
   Future<List<Task>> loadTasks() async =>

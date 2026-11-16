@@ -3,37 +3,70 @@ import 'package:drift/drift.dart';
 import '../../../../core/database/app_database.dart';
 import '../../domain/task.dart';
 
+typedef StoredTaskWithSubtasks = ({
+  StoredTaskRecord task,
+  List<StoredTaskSubtaskRecord> subtasks,
+});
+
 class TaskDao {
   const TaskDao(this.database);
 
   final AppDatabase database;
 
-  Future<List<StoredTaskRecord>> loadTasks() =>
-      (database.select(database.tasks)..orderBy([
-            (t) => OrderingTerm.asc(t.isCompleted),
-            (t) => OrderingTerm.desc(t.updatedAtUtcMicros),
-          ]))
-          .get();
+  Future<List<StoredTaskWithSubtasks>> _loadWithSubtasks({
+    Expression<bool> Function(Tasks)? where,
+    List<OrderingTerm Function(Tasks)> orderBy = const [],
+  }) async {
+    final tasks = database.tasks;
+    final subtasks = database.taskSubtasks;
+    final query = database.select(tasks).join([
+      leftOuterJoin(subtasks, subtasks.taskId.equalsExp(tasks.id)),
+    ]);
+    if (where != null) query.where(where(tasks));
+    query.orderBy([
+      for (final order in orderBy) order(tasks),
+      OrderingTerm.asc(subtasks.position),
+    ]);
+    final grouped = <String, StoredTaskWithSubtasks>{};
+    for (final row in await query.get()) {
+      final task = row.readTable(tasks);
+      final result = grouped.putIfAbsent(
+        task.id,
+        () => (task: task, subtasks: <StoredTaskSubtaskRecord>[]),
+      );
+      final subtask = row.readTableOrNull(subtasks);
+      if (subtask != null) result.subtasks.add(subtask);
+    }
+    return grouped.values.toList();
+  }
 
-  Future<List<StoredTaskRecord>> loadOpenTasksDueBy(DateTime date) =>
-      (database.select(database.tasks)
-            ..where(
-              (task) =>
-                  task.isCompleted.equals(false) &
-                  task.dueDate.isSmallerOrEqualValue(localDateStorage(date)),
-            )
-            ..orderBy([
-              (task) => OrderingTerm.asc(task.dueDate),
-              (task) => OrderingTerm.asc(task.createdAtUtcMicros),
-            ]))
-          .get();
+  Future<List<StoredTaskWithSubtasks>> loadTasks() => _loadWithSubtasks(
+    orderBy: [
+      (t) => OrderingTerm.asc(t.isCompleted),
+      (t) => OrderingTerm.desc(t.updatedAtUtcMicros),
+      (t) => OrderingTerm.asc(t.id),
+    ],
+  );
 
-  Future<StoredTaskRecord?> loadTask(String id) => (database.select(
-    database.tasks,
-  )..where((t) => t.id.equals(id))).getSingleOrNull();
+  Future<List<StoredTaskWithSubtasks>> loadOpenTasksDueBy(DateTime date) =>
+      _loadWithSubtasks(
+        where: (t) =>
+            t.isCompleted.equals(false) &
+            t.dueDate.isSmallerOrEqualValue(localDateStorage(date)),
+        orderBy: [
+          (t) => OrderingTerm.asc(t.dueDate),
+          (t) => OrderingTerm.asc(t.createdAtUtcMicros),
+          (t) => OrderingTerm.asc(t.id),
+        ],
+      );
 
-  Future<void> saveTask(Task task) async {
-    final existing = await loadTask(task.id);
+  Future<StoredTaskWithSubtasks?> loadTask(String id) async =>
+      (await _loadWithSubtasks(where: (t) => t.id.equals(id))).singleOrNull;
+
+  Future<void> saveTask(Task task) => database.transaction(() async {
+    final existing = await (database.select(
+      database.tasks,
+    )..where((t) => t.id.equals(task.id))).getSingleOrNull();
     await database
         .into(database.tasks)
         .insertOnConflictUpdate(
@@ -60,7 +93,39 @@ class TaskDao {
             updatedAtUtcMicros: task.updatedAt.toUtc().microsecondsSinceEpoch,
           ),
         );
-  }
+    final subtasks = database.taskSubtasks;
+    final stored =
+        await (database.select(subtasks)
+              ..where((t) => t.taskId.equals(task.id))
+              ..orderBy([(t) => OrderingTerm.asc(t.position)]))
+            .get();
+    final identical =
+        stored.length == task.subtasks.length &&
+        stored.indexed.every((entry) {
+          final item = task.subtasks[entry.$1];
+          final record = entry.$2;
+          return record.id == item.id &&
+              record.title == item.title &&
+              record.isCompleted == item.isCompleted;
+        });
+    if (!identical) {
+      await (database.delete(
+        subtasks,
+      )..where((t) => t.taskId.equals(task.id))).go();
+      await database.batch((batch) {
+        batch.insertAll(subtasks, [
+          for (final (position, item) in task.subtasks.indexed)
+            TaskSubtasksCompanion.insert(
+              taskId: task.id,
+              id: item.id,
+              title: item.title,
+              isCompleted: item.isCompleted,
+              position: position,
+            ),
+        ]);
+      });
+    }
+  });
 
   Future<void> deleteTask(String id) =>
       (database.delete(database.tasks)..where((t) => t.id.equals(id))).go();

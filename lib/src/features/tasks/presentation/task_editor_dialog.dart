@@ -34,19 +34,44 @@ class TaskEditorDialog extends StatefulWidget {
   State<TaskEditorDialog> createState() => _TaskEditorDialogState();
 }
 
+class _SubtaskDraft {
+  _SubtaskDraft({this.id, this.title = '', this.isCompleted = false});
+
+  final String? id;
+  String title;
+  bool isCompleted;
+
+  TaskSubtask toSubtask(TaskService service) {
+    final existingId = id;
+    return existingId == null
+        ? service.newSubtask(title: title, isCompleted: isCompleted)
+        : TaskSubtask(id: existingId, title: title, isCompleted: isCompleted);
+  }
+}
+
 class _TaskEditorDialogState extends State<TaskEditorDialog> {
   late final TextEditingController title;
   late final TextEditingController start;
   late final TextEditingController end;
+  late final List<_SubtaskDraft> subtasks;
   DateTime? due;
   DateTime? blockDay;
   bool saving = false;
   bool saved = false;
   String? error;
+  final errorKey = GlobalKey();
   @override
   void initState() {
     super.initState();
     final task = widget.task;
+    subtasks = [
+      for (final item in task?.subtasks ?? const <TaskSubtask>[])
+        _SubtaskDraft(
+          id: item.id,
+          title: item.title,
+          isCompleted: item.isCompleted,
+        ),
+    ];
     title = TextEditingController(text: task?.title ?? '');
     due = task?.dueDate;
     blockDay = task?.timeBlock?.plannedDate;
@@ -114,6 +139,21 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
       setState(() => error = 'Enter a task title.');
       return;
     }
+    final emptySubtask = subtasks.indexWhere(
+      (item) => item.title.trim().isEmpty,
+    );
+    if (emptySubtask != -1) {
+      setState(() {
+        error = 'Enter a title for subtask ${emptySubtask + 1} or remove it.';
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final errorContext = errorKey.currentContext;
+        if (mounted && errorContext != null) {
+          Scrollable.ensureVisible(errorContext, alignment: 1);
+        }
+      });
+      return;
+    }
     TaskTimeBlock? block;
     if (blockDay != null) {
       final a = _parse(start.text);
@@ -137,11 +177,15 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
     });
     try {
       final task = widget.task;
+      final checklist = [
+        for (final item in subtasks) item.toSubtask(widget.service),
+      ];
       if (task == null) {
         await widget.service.createTask(
           title: title.text,
           dueDate: due,
           timeBlock: block,
+          subtasks: checklist,
         );
       } else {
         await widget.service.saveEdit(
@@ -149,12 +193,21 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
           title: title.text,
           dueDate: due,
           timeBlock: block,
+          subtasks: checklist,
         );
       }
       if (mounted) {
         setState(() => saved = true);
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) Navigator.pop(context, true);
+        });
+      }
+    } on TaskSubtaskEditConflict {
+      if (mounted) {
+        setState(() {
+          saving = false;
+          error =
+              'Subtasks changed elsewhere. Reopen this task to edit the current checklist.';
         });
       }
     } catch (_) {
@@ -255,10 +308,61 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
                 child: const Text('Clear time block'),
               ),
             ],
+            if (subtasks.isNotEmpty)
+              Semantics(
+                header: true,
+                child: Text(
+                  'Subtasks',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+            for (final (index, item) in subtasks.indexed)
+              Row(
+                key: ObjectKey(item),
+                children: [
+                  Checkbox(
+                    value: item.isCompleted,
+                    semanticLabel:
+                        '${item.isCompleted ? 'Reopen' : 'Complete'} subtask ${index + 1}',
+                    onChanged: saving
+                        ? null
+                        : (value) =>
+                              setState(() => item.isCompleted = value ?? false),
+                  ),
+                  Expanded(
+                    child: TextFormField(
+                      initialValue: item.title,
+                      enabled: !saving,
+                      onChanged: (value) => item.title = value,
+                      decoration: InputDecoration(
+                        labelText: 'Subtask ${index + 1}',
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Remove subtask ${index + 1}',
+                    onPressed: saving
+                        ? null
+                        : () => setState(() => subtasks.remove(item)),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            TextButton.icon(
+              onPressed: saving
+                  ? null
+                  : () => setState(() => subtasks.add(_SubtaskDraft())),
+              icon: const Icon(Icons.add),
+              label: const Text('Add subtask'),
+            ),
             if (error != null)
-              Text(
-                error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              Semantics(
+                key: errorKey,
+                liveRegion: true,
+                child: Text(
+                  error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
               ),
           ],
         ),

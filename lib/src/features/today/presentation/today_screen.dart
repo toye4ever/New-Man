@@ -94,7 +94,11 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete task?'),
-        content: Text('Delete ${task.title}?'),
+        content: Text(
+          task.subtasks.isEmpty
+              ? 'Delete ${task.title}?'
+              : 'Delete ${task.title} and its subtasks?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -267,6 +271,10 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
               ],
             ),
             if (task.isCompleted) const Text('Completed'),
+            if (task.subtasks.isNotEmpty)
+              Text(
+                '${task.completedSubtaskCount} of ${task.subtasks.length} subtasks complete',
+              ),
             if (task.dueDate != null)
               Text('Due: ${DateFormat.yMMMd().format(task.dueDate!)}'),
             if (block != null)

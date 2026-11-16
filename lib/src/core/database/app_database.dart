@@ -354,6 +354,31 @@ class Tasks extends Table {
   ];
 }
 
+@DataClassName('StoredTaskSubtaskRecord')
+class TaskSubtasks extends Table {
+  TextColumn get taskId =>
+      text().references(Tasks, #id, onDelete: KeyAction.cascade)();
+  TextColumn get id => text()();
+  TextColumn get title => text()();
+  BoolColumn get isCompleted => boolean()();
+  IntColumn get position => integer()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {taskId, id};
+
+  @override
+  List<Set<Column<Object>>> get uniqueKeys => [
+    {taskId, position},
+  ];
+
+  @override
+  List<String> get customConstraints => [
+    'CHECK (length(trim(id)) > 0)',
+    'CHECK (length(trim(title)) > 0)',
+    'CHECK (position >= 0)',
+  ];
+}
+
 @DataClassName('DailyPriorityTaskRecord')
 @TableIndex(
   name: 'idx_daily_priority_tasks_date_position',
@@ -397,6 +422,7 @@ class DailyPriorityTasks extends Table {
     WordReadingHistory,
     Tasks,
     DailyPriorityTasks,
+    TaskSubtasks,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -405,7 +431,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.open() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -509,6 +535,13 @@ class AppDatabase extends _$AppDatabase {
           }
           await customStatement(
             "UPDATE local_migration_metadata SET target_schema_version = 10 "
+            "WHERE migration_id = 'word_shared_preferences_v1_to_local_v1' AND state = 'completed'",
+          );
+        }
+        if (from < 11) {
+          await migrator.createTable(taskSubtasks);
+          await customStatement(
+            "UPDATE local_migration_metadata SET target_schema_version = 11 "
             "WHERE migration_id = 'word_shared_preferences_v1_to_local_v1' AND state = 'completed'",
           );
         }

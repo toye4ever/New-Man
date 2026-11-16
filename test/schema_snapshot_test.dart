@@ -44,12 +44,12 @@ void main() {
       schema.rawDatabase.execute('DROP TRIGGER fail_upgrade');
       await failed.close();
       final retry = AppDatabase(schema.newConnection());
-      await verifier.migrateAndValidate(retry, 10);
+      await verifier.migrateAndValidate(retry, 11);
       expect((await retry.select(retry.tasks).getSingle()).plannedDate, isNull);
       expect(
         (await retry.select(retry.localMigrationMetadata).getSingle())
             .targetSchemaVersion,
-        10,
+        11,
       );
       await retry.close();
     },
@@ -66,7 +66,7 @@ void main() {
         "INSERT INTO daily_priority_tasks (priority_date,task_id,position) VALUES ('2026-03-02','retained',0)",
       );
       final db = AppDatabase(schema.newConnection());
-      await verifier.migrateAndValidate(db, 10);
+      await verifier.migrateAndValidate(db, 11);
       final task = await db.select(db.tasks).getSingle();
       expect(task.id, 'retained');
       expect(task.dueDate, '2026-03-01');
@@ -94,7 +94,7 @@ void main() {
         "INSERT INTO word_audio_preferences (id, voice_key, playback_rate) VALUES ('reader', 'retained', 0.5)",
       );
       final database = AppDatabase(schema.newConnection());
-      await verifier.migrateAndValidate(database, 10);
+      await verifier.migrateAndValidate(database, 11);
       expect(
         (await database.select(database.tasks).getSingle()).title,
         'Preserved task',
@@ -115,16 +115,91 @@ void main() {
       await database.close();
     },
   );
-  test('committed Drift schema v10 matches the current database', () async {
+  test('failed v11 migration rolls back the new table and retries safely', () async {
     final verifier = SchemaVerifier(GeneratedHelper());
-    final connection = await verifier.startAt(10);
+    final schema = await verifier.schemaAt(10);
+    schema.rawDatabase.execute(
+      "INSERT INTO tasks (id,title,is_completed,created_at_utc_micros,updated_at_utc_micros) VALUES ('retained','Keep me',0,1,2)",
+    );
+    schema.rawDatabase.execute(
+      "INSERT INTO local_migration_metadata (migration_id,state,source_fingerprint,started_at_utc_micros,completed_at_utc_micros,target_schema_version) VALUES ('word_shared_preferences_v1_to_local_v1','completed','retained',1,2,10)",
+    );
+    schema.rawDatabase.execute(
+      "CREATE TRIGGER reject_v11 BEFORE UPDATE ON local_migration_metadata BEGIN SELECT RAISE(ABORT, 'synthetic migration failure'); END",
+    );
+    final failed = AppDatabase(schema.newConnection());
+    await expectLater(failed.customSelect('SELECT 1').get(), throwsA(anything));
+    expect(
+      schema.rawDatabase.select('PRAGMA user_version').single.values.single,
+      10,
+    );
+    expect(
+      schema.rawDatabase.select(
+        "SELECT name FROM sqlite_master WHERE name = 'task_subtasks'",
+      ),
+      isEmpty,
+    );
+    expect(
+      schema.rawDatabase.select('SELECT title FROM tasks').single['title'],
+      'Keep me',
+    );
+    await failed.close();
+    schema.rawDatabase.execute('DROP TRIGGER reject_v11');
+    final retry = AppDatabase(schema.newConnection());
+    addTearDown(retry.close);
+    await verifier.migrateAndValidate(retry, 11);
+    expect((await retry.select(retry.tasks).getSingle()).title, 'Keep me');
+  });
+
+  test('v10 upgrade preserves a completed task, its block and priority', () async {
+    final verifier = SchemaVerifier(GeneratedHelper());
+    final schema = await verifier.schemaAt(10);
+    schema.rawDatabase.execute('''
+      INSERT INTO tasks (
+        id, title, due_date, is_completed, completed_at_utc_micros,
+        created_at_utc_micros, updated_at_utc_micros, planned_date,
+        start_minutes_local, end_minutes_local
+      ) VALUES (
+        'retained', 'Keep me', '2026-03-01', 1, 13, 11, 13, '2026-03-02', 60, 90
+      )
+    ''');
+    schema.rawDatabase.execute(
+      "INSERT INTO daily_priority_tasks (priority_date,task_id,position) VALUES ('2026-03-02','retained',0)",
+    );
+    schema.rawDatabase.execute(
+      "INSERT INTO local_migration_metadata (migration_id,state,source_fingerprint,started_at_utc_micros,completed_at_utc_micros,target_schema_version) VALUES ('word_shared_preferences_v1_to_local_v1','completed','retained',1,2,10)",
+    );
+    final db = AppDatabase(schema.newConnection());
+    addTearDown(db.close);
+    await verifier.migrateAndValidate(db, 11);
+    final task = await db.select(db.tasks).getSingle();
+    expect(task.id, 'retained');
+    expect(task.isCompleted, isTrue);
+    expect(task.completedAtUtcMicros, 13);
+    expect(task.dueDate, '2026-03-01');
+    expect(task.plannedDate, '2026-03-02');
+    expect(task.startMinutesLocal, 60);
+    expect(task.endMinutesLocal, 90);
+    expect(
+      (await db.select(db.dailyPriorityTasks).getSingle()).taskId,
+      task.id,
+    );
+    expect(await db.select(db.taskSubtasks).get(), isEmpty);
+    final marker = await db.select(db.localMigrationMetadata).getSingle();
+    expect(marker.targetSchemaVersion, 11);
+    expect(marker.sourceFingerprint, 'retained');
+  });
+
+  test('committed Drift schema v11 matches the current database', () async {
+    final verifier = SchemaVerifier(GeneratedHelper());
+    final connection = await verifier.startAt(11);
     final database = AppDatabase(connection);
-    await verifier.migrateAndValidate(database, 10);
+    await verifier.migrateAndValidate(database, 11);
     await database.close();
   });
 
   test(
-    'v6 migrates to v10 with empty Task tables and preserved Word data',
+    'v6 migrates to v11 with empty Task tables and preserved Word data',
     () async {
       final verifier = SchemaVerifier(GeneratedHelper());
       final schema = await verifier.schemaAt(6);
@@ -192,7 +267,7 @@ void main() {
         'synthetic-fingerprint', 1, 2, 6)
     ''');
       final database = AppDatabase(schema.newConnection());
-      await verifier.migrateAndValidate(database, 10);
+      await verifier.migrateAndValidate(database, 11);
       expect(
         (await database.select(database.biblePlans).getSingle()).title,
         'Preserved Plan',
@@ -236,13 +311,13 @@ void main() {
       expect(
         (await database.select(database.localMigrationMetadata).getSingle())
             .targetSchemaVersion,
-        10,
+        11,
       );
       await database.close();
     },
   );
 
-  test('v2 migrates to v10 without losing Word state', () async {
+  test('v2 migrates to v11 without losing Word state', () async {
     final verifier = SchemaVerifier(GeneratedHelper());
     final schema = await verifier.schemaAt(2);
     schema.rawDatabase.execute('''
@@ -276,7 +351,7 @@ void main() {
     ''');
 
     final database = AppDatabase(schema.newConnection());
-    await verifier.migrateAndValidate(database, 10);
+    await verifier.migrateAndValidate(database, 11);
     expect(
       (await database.select(database.biblePlans).getSingle()).title,
       'Preserved Plan',
@@ -292,12 +367,12 @@ void main() {
     expect(
       (await database.select(database.localMigrationMetadata).getSingle())
           .targetSchemaVersion,
-      10,
+      11,
     );
     await database.close();
   });
 
-  test('v3 migrates to v10 and creates durable audio preferences', () async {
+  test('v3 migrates to v11 and creates durable audio preferences', () async {
     final verifier = SchemaVerifier(GeneratedHelper());
     final schema = await verifier.schemaAt(3);
     schema.rawDatabase.execute('''
@@ -311,17 +386,17 @@ void main() {
     ''');
 
     final database = AppDatabase(schema.newConnection());
-    await verifier.migrateAndValidate(database, 10);
+    await verifier.migrateAndValidate(database, 11);
     expect(await database.select(database.wordAudioPreferences).get(), isEmpty);
     expect(
       (await database.select(database.localMigrationMetadata).getSingle())
           .targetSchemaVersion,
-      10,
+      11,
     );
     await database.close();
   });
 
-  test('v4 migrates to v10 without changing existing Word rows', () async {
+  test('v4 migrates to v11 without changing existing Word rows', () async {
     final verifier = SchemaVerifier(GeneratedHelper());
     final schema = await verifier.schemaAt(4);
     schema.rawDatabase.execute('''
@@ -339,7 +414,7 @@ void main() {
       )
     ''');
     final database = AppDatabase(schema.newConnection());
-    await verifier.migrateAndValidate(database, 10);
+    await verifier.migrateAndValidate(database, 11);
     expect(
       (await database.select(database.wordReaderStates).getSingle()).chapter,
       8,
@@ -351,12 +426,12 @@ void main() {
     expect(
       (await database.select(database.localMigrationMetadata).getSingle())
           .targetSchemaVersion,
-      10,
+      11,
     );
     await database.close();
   });
 
-  test('v5 migrates notes through v8 without data loss', () async {
+  test('v5 migrates notes through v11 without data loss', () async {
     final verifier = SchemaVerifier(GeneratedHelper());
     final schema = await verifier.schemaAt(5);
     schema.rawDatabase.execute('''
@@ -374,7 +449,7 @@ void main() {
         'synthetic-fingerprint', 1, 2, 5)
     ''');
     final database = AppDatabase(schema.newConnection());
-    await verifier.migrateAndValidate(database, 10);
+    await verifier.migrateAndValidate(database, 11);
     final note = await database.select(database.wordScriptureNotes).getSingle();
     final anchor = await database
         .select(database.wordScriptureNoteAnchors)
@@ -402,12 +477,12 @@ void main() {
     expect(
       (await database.select(database.localMigrationMetadata).getSingle())
           .targetSchemaVersion,
-      10,
+      11,
     );
     await database.close();
   });
 
-  test('v1 migrates through v10 without losing Word data', () async {
+  test('v1 migrates through v11 without losing Word data', () async {
     final verifier = SchemaVerifier(GeneratedHelper());
     final schema = await verifier.schemaAt(1);
     schema.rawDatabase.execute('''
@@ -431,7 +506,7 @@ void main() {
     ''');
 
     final database = AppDatabase(schema.newConnection());
-    await verifier.migrateAndValidate(database, 10);
+    await verifier.migrateAndValidate(database, 11);
     expect(
       (await database.select(database.biblePlans).getSingle()).title,
       'Preserved Plan',
@@ -440,7 +515,7 @@ void main() {
     expect(
       (await database.select(database.localMigrationMetadata).getSingle())
           .targetSchemaVersion,
-      10,
+      11,
     );
     await database.close();
   });

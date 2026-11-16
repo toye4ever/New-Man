@@ -60,8 +60,8 @@ void main() {
     (await database.select(database.wordTranslationStates).get()).length,
   ];
 
-  test('schema v10 creates approved tables, index, and foreign keys', () async {
-    expect(database.schemaVersion, 10);
+  test('schema v11 creates approved tables, index, and foreign keys', () async {
+    expect(database.schemaVersion, 11);
     final tables = await database
         .customSelect(
           "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
@@ -83,6 +83,7 @@ void main() {
       'word_reading_history',
       'tasks',
       'daily_priority_tasks',
+      'task_subtasks',
     });
     final indexes = await database
         .customSelect("SELECT name FROM sqlite_master WHERE type = 'index'")
@@ -113,7 +114,7 @@ void main() {
     expect(priorityForeignKeys.single.read<String>('on_delete'), 'CASCADE');
   });
 
-  test('fresh v10 enforces Task and Daily Priority constraints', () async {
+  test('fresh v11 enforces Task and Daily Priority constraints', () async {
     Future<void> insertTask({
       required String id,
       required String title,

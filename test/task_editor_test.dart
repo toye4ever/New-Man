@@ -8,6 +8,95 @@ import 'package:scripture_planner/src/features/tasks/domain/task.dart';
 import 'package:scripture_planner/src/features/tasks/presentation/task_editor_dialog.dart';
 
 void main() {
+  testWidgets('subtasks add, validate, save and cancel without losing state', (
+    tester,
+  ) async {
+    final repo = _Repository();
+    final service = TaskService(repo);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showTaskEditor(
+                context,
+                service,
+                task: repo.tasks.values.firstOrNull,
+              ),
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    Future<void> tapText(String value) async {
+      final finder = find.text(value);
+      await tester.ensureVisible(finder);
+      await tester.tap(finder);
+      await tester.pumpAndSettle();
+    }
+
+    Finder item(int number) =>
+        find.widgetWithText(TextFormField, 'Subtask $number');
+
+    await tapText('Open');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Task title'),
+      'Prepare class',
+    );
+    await tapText('Add subtask');
+    await tapText('Save task');
+    expect(
+      find.text('Enter a title for subtask 1 or remove it.'),
+      findsOneWidget,
+    );
+    expect(repo.writes, 0);
+    await tester.ensureVisible(item(1));
+    await tester.enterText(item(1), 'Get notes');
+    await tapText('Add subtask');
+    await tester.ensureVisible(item(2));
+    await tester.enterText(item(2), 'Print handout');
+    final firstCheckbox = find.byType(Checkbox).first;
+    await tester.ensureVisible(firstCheckbox);
+    await tester.tap(firstCheckbox);
+    await tester.pumpAndSettle();
+    await tapText('Save task');
+
+    final original = repo.tasks.values.single;
+    expect(original.isCompleted, isFalse);
+    expect(original.subtasks.map((item) => item.title), [
+      'Get notes',
+      'Print handout',
+    ]);
+    expect(original.completedSubtaskCount, 1);
+
+    await tapText('Open');
+    expect(tester.widget<Checkbox>(find.byType(Checkbox).first).value, isTrue);
+    final remove = find.byTooltip('Remove subtask 1');
+    await tester.ensureVisible(remove);
+    await tester.tap(remove);
+    await tester.pumpAndSettle();
+    expect(find.text('Print handout'), findsOneWidget);
+    await tester.ensureVisible(item(1));
+    await tester.enterText(item(1), 'Print two handouts');
+    await tapText('Cancel');
+    expect(repo.writes, 1);
+    expect(repo.tasks.values.single, same(original));
+
+    await tapText('Open');
+    await tester.ensureVisible(remove);
+    await tester.tap(remove);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(item(1));
+    await tester.enterText(item(1), 'Print revised handout');
+    await tapText('Save task');
+    final updated = repo.tasks.values.single;
+    expect(updated.subtasks.single.id, original.subtasks[1].id);
+    expect(updated.subtasks.single.title, 'Print revised handout');
+    expect(updated.subtasks.single.isCompleted, isFalse);
+    service.dispose();
+  });
+
   testWidgets(
     'failed save keeps title and prevents dismissal until retry succeeds',
     (tester) async {
@@ -195,6 +284,7 @@ void main() {
       for (final label in [
         'Add due date (optional)',
         'Add time block (optional)',
+        'Add subtask',
         'Cancel',
       ]) {
         await tester.sendKeyEvent(LogicalKeyboardKey.tab);

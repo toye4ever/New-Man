@@ -7518,6 +7518,383 @@ class DailyPriorityTasksCompanion
   }
 }
 
+class $TaskSubtasksTable extends TaskSubtasks
+    with TableInfo<$TaskSubtasksTable, StoredTaskSubtaskRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TaskSubtasksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _taskIdMeta = const VerificationMeta('taskId');
+  @override
+  late final GeneratedColumn<String> taskId = GeneratedColumn<String>(
+    'task_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES tasks (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _isCompletedMeta = const VerificationMeta(
+    'isCompleted',
+  );
+  @override
+  late final GeneratedColumn<bool> isCompleted = GeneratedColumn<bool>(
+    'is_completed',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_completed" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _positionMeta = const VerificationMeta(
+    'position',
+  );
+  @override
+  late final GeneratedColumn<int> position = GeneratedColumn<int>(
+    'position',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    taskId,
+    id,
+    title,
+    isCompleted,
+    position,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'task_subtasks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<StoredTaskSubtaskRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('task_id')) {
+      context.handle(
+        _taskIdMeta,
+        taskId.isAcceptableOrUnknown(data['task_id']!, _taskIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_taskIdMeta);
+    }
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('is_completed')) {
+      context.handle(
+        _isCompletedMeta,
+        isCompleted.isAcceptableOrUnknown(
+          data['is_completed']!,
+          _isCompletedMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_isCompletedMeta);
+    }
+    if (data.containsKey('position')) {
+      context.handle(
+        _positionMeta,
+        position.isAcceptableOrUnknown(data['position']!, _positionMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_positionMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {taskId, id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {taskId, position},
+  ];
+  @override
+  StoredTaskSubtaskRecord map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return StoredTaskSubtaskRecord(
+      taskId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}task_id'],
+      )!,
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      isCompleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_completed'],
+      )!,
+      position: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position'],
+      )!,
+    );
+  }
+
+  @override
+  $TaskSubtasksTable createAlias(String alias) {
+    return $TaskSubtasksTable(attachedDatabase, alias);
+  }
+}
+
+class StoredTaskSubtaskRecord extends DataClass
+    implements Insertable<StoredTaskSubtaskRecord> {
+  final String taskId;
+  final String id;
+  final String title;
+  final bool isCompleted;
+  final int position;
+  const StoredTaskSubtaskRecord({
+    required this.taskId,
+    required this.id,
+    required this.title,
+    required this.isCompleted,
+    required this.position,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['task_id'] = Variable<String>(taskId);
+    map['id'] = Variable<String>(id);
+    map['title'] = Variable<String>(title);
+    map['is_completed'] = Variable<bool>(isCompleted);
+    map['position'] = Variable<int>(position);
+    return map;
+  }
+
+  TaskSubtasksCompanion toCompanion(bool nullToAbsent) {
+    return TaskSubtasksCompanion(
+      taskId: Value(taskId),
+      id: Value(id),
+      title: Value(title),
+      isCompleted: Value(isCompleted),
+      position: Value(position),
+    );
+  }
+
+  factory StoredTaskSubtaskRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return StoredTaskSubtaskRecord(
+      taskId: serializer.fromJson<String>(json['taskId']),
+      id: serializer.fromJson<String>(json['id']),
+      title: serializer.fromJson<String>(json['title']),
+      isCompleted: serializer.fromJson<bool>(json['isCompleted']),
+      position: serializer.fromJson<int>(json['position']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'taskId': serializer.toJson<String>(taskId),
+      'id': serializer.toJson<String>(id),
+      'title': serializer.toJson<String>(title),
+      'isCompleted': serializer.toJson<bool>(isCompleted),
+      'position': serializer.toJson<int>(position),
+    };
+  }
+
+  StoredTaskSubtaskRecord copyWith({
+    String? taskId,
+    String? id,
+    String? title,
+    bool? isCompleted,
+    int? position,
+  }) => StoredTaskSubtaskRecord(
+    taskId: taskId ?? this.taskId,
+    id: id ?? this.id,
+    title: title ?? this.title,
+    isCompleted: isCompleted ?? this.isCompleted,
+    position: position ?? this.position,
+  );
+  StoredTaskSubtaskRecord copyWithCompanion(TaskSubtasksCompanion data) {
+    return StoredTaskSubtaskRecord(
+      taskId: data.taskId.present ? data.taskId.value : this.taskId,
+      id: data.id.present ? data.id.value : this.id,
+      title: data.title.present ? data.title.value : this.title,
+      isCompleted: data.isCompleted.present
+          ? data.isCompleted.value
+          : this.isCompleted,
+      position: data.position.present ? data.position.value : this.position,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('StoredTaskSubtaskRecord(')
+          ..write('taskId: $taskId, ')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('isCompleted: $isCompleted, ')
+          ..write('position: $position')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(taskId, id, title, isCompleted, position);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is StoredTaskSubtaskRecord &&
+          other.taskId == this.taskId &&
+          other.id == this.id &&
+          other.title == this.title &&
+          other.isCompleted == this.isCompleted &&
+          other.position == this.position);
+}
+
+class TaskSubtasksCompanion extends UpdateCompanion<StoredTaskSubtaskRecord> {
+  final Value<String> taskId;
+  final Value<String> id;
+  final Value<String> title;
+  final Value<bool> isCompleted;
+  final Value<int> position;
+  final Value<int> rowid;
+  const TaskSubtasksCompanion({
+    this.taskId = const Value.absent(),
+    this.id = const Value.absent(),
+    this.title = const Value.absent(),
+    this.isCompleted = const Value.absent(),
+    this.position = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TaskSubtasksCompanion.insert({
+    required String taskId,
+    required String id,
+    required String title,
+    required bool isCompleted,
+    required int position,
+    this.rowid = const Value.absent(),
+  }) : taskId = Value(taskId),
+       id = Value(id),
+       title = Value(title),
+       isCompleted = Value(isCompleted),
+       position = Value(position);
+  static Insertable<StoredTaskSubtaskRecord> custom({
+    Expression<String>? taskId,
+    Expression<String>? id,
+    Expression<String>? title,
+    Expression<bool>? isCompleted,
+    Expression<int>? position,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (taskId != null) 'task_id': taskId,
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (isCompleted != null) 'is_completed': isCompleted,
+      if (position != null) 'position': position,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TaskSubtasksCompanion copyWith({
+    Value<String>? taskId,
+    Value<String>? id,
+    Value<String>? title,
+    Value<bool>? isCompleted,
+    Value<int>? position,
+    Value<int>? rowid,
+  }) {
+    return TaskSubtasksCompanion(
+      taskId: taskId ?? this.taskId,
+      id: id ?? this.id,
+      title: title ?? this.title,
+      isCompleted: isCompleted ?? this.isCompleted,
+      position: position ?? this.position,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (taskId.present) {
+      map['task_id'] = Variable<String>(taskId.value);
+    }
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (isCompleted.present) {
+      map['is_completed'] = Variable<bool>(isCompleted.value);
+    }
+    if (position.present) {
+      map['position'] = Variable<int>(position.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TaskSubtasksCompanion(')
+          ..write('taskId: $taskId, ')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('isCompleted: $isCompleted, ')
+          ..write('position: $position, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -7550,6 +7927,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $TasksTable tasks = $TasksTable(this);
   late final $DailyPriorityTasksTable dailyPriorityTasks =
       $DailyPriorityTasksTable(this);
+  late final $TaskSubtasksTable taskSubtasks = $TaskSubtasksTable(this);
   late final Index idxBiblePlanScheduleEntriesPlanDate = Index(
     'idx_bible_plan_schedule_entries_plan_date',
     'CREATE INDEX idx_bible_plan_schedule_entries_plan_date ON bible_plan_schedule_entries (plan_id, scheduled_date)',
@@ -7582,6 +7960,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     wordReadingHistory,
     tasks,
     dailyPriorityTasks,
+    taskSubtasks,
     idxBiblePlanScheduleEntriesPlanDate,
     idxTasksOpenDueDate,
     idxDailyPriorityTasksDatePosition,
@@ -7628,6 +8007,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('daily_priority_tasks', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'tasks',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('task_subtasks', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -12076,6 +12462,24 @@ final class $$TasksTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$TaskSubtasksTable, List<StoredTaskSubtaskRecord>>
+  _taskSubtasksRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.taskSubtasks,
+    aliasName: 'tasks__id__task_subtasks__task_id',
+  );
+
+  $$TaskSubtasksTableProcessedTableManager get taskSubtasksRefs {
+    final manager = $$TaskSubtasksTableTableManager(
+      $_db,
+      $_db.taskSubtasks,
+    ).filter((f) => f.taskId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_taskSubtasksRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
@@ -12152,6 +12556,31 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
           }) => $$DailyPriorityTasksTableFilterComposer(
             $db: $db,
             $table: $db.dailyPriorityTasks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> taskSubtasksRefs(
+    Expression<bool> Function($$TaskSubtasksTableFilterComposer f) f,
+  ) {
+    final $$TaskSubtasksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.taskSubtasks,
+      getReferencedColumn: (t) => t.taskId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TaskSubtasksTableFilterComposer(
+            $db: $db,
+            $table: $db.taskSubtasks,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -12300,6 +12729,31 @@ class $$TasksTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> taskSubtasksRefs<T extends Object>(
+    Expression<T> Function($$TaskSubtasksTableAnnotationComposer a) f,
+  ) {
+    final $$TaskSubtasksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.taskSubtasks,
+      getReferencedColumn: (t) => t.taskId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TaskSubtasksTableAnnotationComposer(
+            $db: $db,
+            $table: $db.taskSubtasks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$TasksTableTableManager
@@ -12315,7 +12769,10 @@ class $$TasksTableTableManager
           $$TasksTableUpdateCompanionBuilder,
           (StoredTaskRecord, $$TasksTableReferences),
           StoredTaskRecord,
-          PrefetchHooks Function({bool dailyPriorityTasksRefs})
+          PrefetchHooks Function({
+            bool dailyPriorityTasksRefs,
+            bool taskSubtasksRefs,
+          })
         > {
   $$TasksTableTableManager(_$AppDatabase db, $TasksTable table)
     : super(
@@ -12386,37 +12843,63 @@ class $$TasksTableTableManager
                     (e.readTable(table), $$TasksTableReferences(db, table, e)),
               )
               .toList(),
-          prefetchHooksCallback: ({dailyPriorityTasksRefs = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [
-                if (dailyPriorityTasksRefs) db.dailyPriorityTasks,
-              ],
-              addJoins: null,
-              getPrefetchedDataCallback: (items) async {
-                return [
-                  if (dailyPriorityTasksRefs)
-                    await $_getPrefetchedData<
-                      StoredTaskRecord,
-                      $TasksTable,
-                      DailyPriorityTaskRecord
-                    >(
-                      currentTable: table,
-                      referencedTable: $$TasksTableReferences
-                          ._dailyPriorityTasksRefsTable(db),
-                      managerFromTypedResult: (p0) => $$TasksTableReferences(
-                        db,
-                        table,
-                        p0,
-                      ).dailyPriorityTasksRefs,
-                      referencedItemsForCurrentItem: (item, referencedItems) =>
-                          referencedItems.where((e) => e.taskId == item.id),
-                      typedResults: items,
-                    ),
-                ];
+          prefetchHooksCallback:
+              ({dailyPriorityTasksRefs = false, taskSubtasksRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (dailyPriorityTasksRefs) db.dailyPriorityTasks,
+                    if (taskSubtasksRefs) db.taskSubtasks,
+                  ],
+                  addJoins: null,
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (dailyPriorityTasksRefs)
+                        await $_getPrefetchedData<
+                          StoredTaskRecord,
+                          $TasksTable,
+                          DailyPriorityTaskRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$TasksTableReferences
+                              ._dailyPriorityTasksRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$TasksTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).dailyPriorityTasksRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.taskId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (taskSubtasksRefs)
+                        await $_getPrefetchedData<
+                          StoredTaskRecord,
+                          $TasksTable,
+                          StoredTaskSubtaskRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$TasksTableReferences
+                              ._taskSubtasksRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$TasksTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).taskSubtasksRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.taskId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -12433,7 +12916,10 @@ typedef $$TasksTableProcessedTableManager =
       $$TasksTableUpdateCompanionBuilder,
       (StoredTaskRecord, $$TasksTableReferences),
       StoredTaskRecord,
-      PrefetchHooks Function({bool dailyPriorityTasksRefs})
+      PrefetchHooks Function({
+        bool dailyPriorityTasksRefs,
+        bool taskSubtasksRefs,
+      })
     >;
 typedef $$DailyPriorityTasksTableCreateCompanionBuilder =
     DailyPriorityTasksCompanion Function({
@@ -12732,6 +13218,330 @@ typedef $$DailyPriorityTasksTableProcessedTableManager =
       DailyPriorityTaskRecord,
       PrefetchHooks Function({bool taskId})
     >;
+typedef $$TaskSubtasksTableCreateCompanionBuilder =
+    TaskSubtasksCompanion Function({
+      required String taskId,
+      required String id,
+      required String title,
+      required bool isCompleted,
+      required int position,
+      Value<int> rowid,
+    });
+typedef $$TaskSubtasksTableUpdateCompanionBuilder =
+    TaskSubtasksCompanion Function({
+      Value<String> taskId,
+      Value<String> id,
+      Value<String> title,
+      Value<bool> isCompleted,
+      Value<int> position,
+      Value<int> rowid,
+    });
+
+final class $$TaskSubtasksTableReferences
+    extends
+        BaseReferences<
+          _$AppDatabase,
+          $TaskSubtasksTable,
+          StoredTaskSubtaskRecord
+        > {
+  $$TaskSubtasksTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $TasksTable _taskIdTable(_$AppDatabase db) =>
+      db.tasks.createAlias('task_subtasks__task_id__tasks__id');
+
+  $$TasksTableProcessedTableManager get taskId {
+    final $_column = $_itemColumn<String>('task_id')!;
+
+    final manager = $$TasksTableTableManager(
+      $_db,
+      $_db.tasks,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_taskIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$TaskSubtasksTableFilterComposer
+    extends Composer<_$AppDatabase, $TaskSubtasksTable> {
+  $$TaskSubtasksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isCompleted => $composableBuilder(
+    column: $table.isCompleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$TasksTableFilterComposer get taskId {
+    final $$TasksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.taskId,
+      referencedTable: $db.tasks,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TasksTableFilterComposer(
+            $db: $db,
+            $table: $db.tasks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TaskSubtasksTableOrderingComposer
+    extends Composer<_$AppDatabase, $TaskSubtasksTable> {
+  $$TaskSubtasksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isCompleted => $composableBuilder(
+    column: $table.isCompleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get position => $composableBuilder(
+    column: $table.position,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$TasksTableOrderingComposer get taskId {
+    final $$TasksTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.taskId,
+      referencedTable: $db.tasks,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TasksTableOrderingComposer(
+            $db: $db,
+            $table: $db.tasks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TaskSubtasksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TaskSubtasksTable> {
+  $$TaskSubtasksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<bool> get isCompleted => $composableBuilder(
+    column: $table.isCompleted,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get position =>
+      $composableBuilder(column: $table.position, builder: (column) => column);
+
+  $$TasksTableAnnotationComposer get taskId {
+    final $$TasksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.taskId,
+      referencedTable: $db.tasks,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TasksTableAnnotationComposer(
+            $db: $db,
+            $table: $db.tasks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TaskSubtasksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TaskSubtasksTable,
+          StoredTaskSubtaskRecord,
+          $$TaskSubtasksTableFilterComposer,
+          $$TaskSubtasksTableOrderingComposer,
+          $$TaskSubtasksTableAnnotationComposer,
+          $$TaskSubtasksTableCreateCompanionBuilder,
+          $$TaskSubtasksTableUpdateCompanionBuilder,
+          (StoredTaskSubtaskRecord, $$TaskSubtasksTableReferences),
+          StoredTaskSubtaskRecord,
+          PrefetchHooks Function({bool taskId})
+        > {
+  $$TaskSubtasksTableTableManager(_$AppDatabase db, $TaskSubtasksTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TaskSubtasksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TaskSubtasksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TaskSubtasksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> taskId = const Value.absent(),
+                Value<String> id = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<bool> isCompleted = const Value.absent(),
+                Value<int> position = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TaskSubtasksCompanion(
+                taskId: taskId,
+                id: id,
+                title: title,
+                isCompleted: isCompleted,
+                position: position,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String taskId,
+                required String id,
+                required String title,
+                required bool isCompleted,
+                required int position,
+                Value<int> rowid = const Value.absent(),
+              }) => TaskSubtasksCompanion.insert(
+                taskId: taskId,
+                id: id,
+                title: title,
+                isCompleted: isCompleted,
+                position: position,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$TaskSubtasksTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({taskId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (taskId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.taskId,
+                                referencedTable: $$TaskSubtasksTableReferences
+                                    ._taskIdTable(db),
+                                referencedColumn: $$TaskSubtasksTableReferences
+                                    ._taskIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$TaskSubtasksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TaskSubtasksTable,
+      StoredTaskSubtaskRecord,
+      $$TaskSubtasksTableFilterComposer,
+      $$TaskSubtasksTableOrderingComposer,
+      $$TaskSubtasksTableAnnotationComposer,
+      $$TaskSubtasksTableCreateCompanionBuilder,
+      $$TaskSubtasksTableUpdateCompanionBuilder,
+      (StoredTaskSubtaskRecord, $$TaskSubtasksTableReferences),
+      StoredTaskSubtaskRecord,
+      PrefetchHooks Function({bool taskId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -12784,4 +13594,6 @@ class $AppDatabaseManager {
       $$TasksTableTableManager(_db, _db.tasks);
   $$DailyPriorityTasksTableTableManager get dailyPriorityTasks =>
       $$DailyPriorityTasksTableTableManager(_db, _db.dailyPriorityTasks);
+  $$TaskSubtasksTableTableManager get taskSubtasks =>
+      $$TaskSubtasksTableTableManager(_db, _db.taskSubtasks);
 }

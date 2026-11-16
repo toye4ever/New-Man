@@ -82,7 +82,11 @@ class _TasksScreenState extends State<TasksScreen> with WidgetsBindingObserver {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete task?'),
-        content: Text('Delete ${task.title}?'),
+        content: Text(
+          task.subtasks.isEmpty
+              ? 'Delete ${task.title}?'
+              : 'Delete ${task.title} and its subtasks?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -164,10 +168,15 @@ class _TasksScreenState extends State<TasksScreen> with WidgetsBindingObserver {
                               ),
                       ),
                       title: Text(task.title),
-                      subtitle: task.dueDate == null
+                      subtitle: task.dueDate == null && task.subtasks.isEmpty
                           ? null
                           : Text(
-                              'Due ${DateFormat.yMMMd().format(task.dueDate!)}',
+                              [
+                                if (task.dueDate != null)
+                                  'Due ${DateFormat.yMMMd().format(task.dueDate!)}',
+                                if (task.subtasks.isNotEmpty)
+                                  '${task.completedSubtaskCount} of ${task.subtasks.length} subtasks complete',
+                              ].join(' • '),
                             ),
                       onTap: saving ? null : () => edit(task),
                       trailing: Wrap(
