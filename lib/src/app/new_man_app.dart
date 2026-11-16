@@ -101,7 +101,10 @@ class NewManShell extends StatelessWidget {
           )
           ? const FocusScreen()
           : const _DeferredFocusScreen(),
-      const AccountabilityScreen(),
+      // Unmount local drafts on tab departure; IndexedStack otherwise retains them.
+      controller.selectedDestination == 3
+          ? const AccountabilityScreen()
+          : const SizedBox.shrink(),
       MoreScreen(controller: controller),
     ];
 

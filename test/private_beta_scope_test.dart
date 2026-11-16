@@ -77,6 +77,20 @@ void main() {
     expect(qualificationCalls, 0);
     expect(readinessCalls, 0);
 
+    await tester.tap(find.text('Accountability').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Start private draft'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Include Reflection'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Discard on navigation');
+    await tester.tap(find.text('Today').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Accountability').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Start private draft'), findsOneWidget);
+    expect(find.text('Discard on navigation'), findsNothing);
+
     await tester.tap(find.text('Word'));
     await tester.pumpAndSettle();
     expect(find.text('Browse Bible'), findsOneWidget);
