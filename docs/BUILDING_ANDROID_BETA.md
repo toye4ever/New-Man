@@ -61,3 +61,38 @@ identity and contain exactly the protected Guard qualification service.
 An inspection failure exits 2; a rejected manifest exits 1. A passing manifest
 check does not qualify Guard behavior, signing, clean installation, or device
 flows. The historical beta predates containment and is not a new candidate.
+
+## Bounded feature-branch Android CI
+
+`android-feature-check.yml` runs only for pushes to this repository's
+`mvp/nov-17` branch, on the standard `macos-15` ARM64 runner with read-only contents
+permission. It does not use a larger/xlarge runner. It pins checkout and Flutter
+to full commit SHAs and uses the source Gradle 9.1.0 wrapper and locked
+dependencies, rather than the runner's globally installed Gradle. The checked-out
+commit is asserted against the event SHA. There is no release, deployment,
+custom signing, artifact upload, device operation, or use of stored secrets.
+The existing Windows workflow remains a separate check.
+
+Preflight requires Android platform 36, build-tools 36.0.0, platform-tools,
+`apkanalyzer`, NDK 28.2.13676358 and ARM64 JDK 21 already installed on the runner.
+It asserts macOS/ARM64, checks Java's major version, and points job-local NDK aliases at the pinned package rather than the runner default. The NDK host path is
+`darwin-x86_64`, including on Apple Silicon; these macOS NDK tools are fat
+binaries ([NDK host documentation](https://developer.android.com/ndk/guides/other_build_systems)).
+The script also accepts an explicit Linux host tag for local preflight checks;
+a Linux toolchain cannot pass the macOS check.
+
+The workflow does not run sdkmanager or accept licenses; SDK auto-download is
+disabled in Gradle. Missing components fail before fetching Flutter or resolving
+build inputs. Standard Flutter/Gradle build dependency resolution still needs
+network access. No SDK archive sideload or retry of denied cloud SDK downloads
+is added. Shell commands use macOS-compatible tools, including `shasum` for the
+resulting APK hash.
+
+The [macOS 15 ARM64 runner inventory](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-arm64-Readme.md)
+checked on November 16, 2026 lists platform 36, build-tools 36.0.0,
+platform-tools, NDK 28.2.13676358 and JDK 21. Runner inventory may change, so the
+actual preflight result remains authoritative. Local synthetic preflight tests
+do not prove runner readiness or Android compilation. A passing debug ARM64
+build and compiled-manifest check remain distinct from installation and device
+smoke qualification. The workflow must be published with GitHub workflow-write
+access before a run can provide that evidence.

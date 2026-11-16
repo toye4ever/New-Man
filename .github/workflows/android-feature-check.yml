@@ -1,0 +1,80 @@
+name: Android feature build check
+
+on:
+  push:
+    branches: ['mvp/nov-17']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-feature-build
+  cancel-in-progress: true
+
+jobs:
+  debug-arm64:
+    if: github.repository == 'toye4ever/New-Man' && github.ref == 'refs/heads/mvp/nov-17'
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+      GRADLE_USER_HOME: ${{ runner.temp }}/new-man-gradle
+    steps:
+      - name: Check out the exact feature commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Require preinstalled Android SDK and JDK 21
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(uname -s)" = Darwin
+          test "$(uname -m)" = arm64
+          python3 tools/check_android_ci_sdk.py "${ANDROID_HOME:?Runner SDK is missing}" --host-tag darwin-x86_64
+          test -x "${JAVA_HOME_21_arm64:?Preinstalled ARM64 JDK 21 is missing}/bin/java"
+          java_properties=$("$JAVA_HOME_21_arm64/bin/java" -XshowSettings:properties -version 2>&1)
+          printf '%s\n' "$java_properties"
+          printf '%s\n' "$java_properties" | grep -E 'java.specification.version = 21$'
+          echo "JAVA_HOME=$JAVA_HOME_21_arm64" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_21_arm64/bin" >> "$GITHUB_PATH"
+          "$ANDROID_HOME/ndk/28.2.13676358/toolchains/llvm/prebuilt/darwin-x86_64/bin/clang" --version
+          # Override the runner's default NDK 27/29 aliases for native hooks.
+          for ndk_variable in ANDROID_NDK ANDROID_NDK_HOME ANDROID_NDK_ROOT ANDROID_NDK_LATEST_HOME; do
+            printf '%s=%s\n' "$ndk_variable" "$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+          done
+          mkdir -p "$GRADLE_USER_HOME"
+          # AGP must fail rather than downloading SDK packages.
+          echo 'android.builder.sdkDownload=false' > "$GRADLE_USER_HOME/gradle.properties"
+      - name: Check out pinned Flutter 3.44.8
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: flutter/flutter
+          ref: 058e0af2c2b57e369d905a03ac9748b0ebf543c6
+          path: .ci-flutter
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Prepare pinned Flutter and lockfile dependencies
+        run: |
+          set -euo pipefail
+          test "$(git -C .ci-flutter rev-parse HEAD)" = 058e0af2c2b57e369d905a03ac9748b0ebf543c6
+          echo "$GITHUB_WORKSPACE/.ci-flutter/bin" >> "$GITHUB_PATH"
+          .ci-flutter/bin/flutter --version
+          .ci-flutter/bin/flutter precache --android
+          .ci-flutter/bin/flutter pub get --enforce-lockfile
+          git diff --exit-code -- pubspec.lock
+      - name: Build debug ARM64 from pinned inputs
+        run: |
+          set -euo pipefail
+          grep -Fq 'gradle-9.1.0-all.zip' android/gradle/wrapper/gradle-wrapper.properties
+          env 'ORG_GRADLE_PROJECT_android.builder.sdkDownload=false' flutter build apk --debug --target-platform android-arm64 --no-pub
+          git diff --exit-code -- pubspec.lock android/app/build.gradle.kts android/settings.gradle.kts android/gradle/wrapper/gradle-wrapper.properties
+      - name: Check the compiled APK manifest
+        run: |
+          set -euo pipefail
+          python3 tools/check_android_candidate.py debug build/app/outputs/flutter-apk/app-debug.apk --apkanalyzer "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
+          shasum -a 256 build/app/outputs/flutter-apk/app-debug.apk
