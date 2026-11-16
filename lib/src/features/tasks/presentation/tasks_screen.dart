@@ -5,6 +5,7 @@ import '../domain/task.dart';
 import '../../today/application/today_planner_controller.dart';
 import 'task_editor_dialog.dart';
 import 'task_repeat_dialog.dart';
+import 'task_reminder_inbox.dart';
 
 class TasksScreen extends StatefulWidget {
   const TasksScreen({
@@ -171,6 +172,11 @@ class _TasksScreenState extends State<TasksScreen> with WidgetsBindingObserver {
             : ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  if (widget.service.supportsInAppReminders)
+                    TaskReminderInbox(
+                      service: widget.service,
+                      clock: widget.clock,
+                    ),
                   Text('Priorities for $dateLabel'),
                   if (tasks.isEmpty)
                     const Text(

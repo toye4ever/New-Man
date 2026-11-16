@@ -44,12 +44,12 @@ void main() {
       schema.rawDatabase.execute('DROP TRIGGER fail_upgrade');
       await failed.close();
       final retry = AppDatabase(schema.newConnection());
-      await verifier.migrateAndValidate(retry, 12);
+      await verifier.migrateAndValidate(retry, 13);
       expect((await retry.select(retry.tasks).getSingle()).plannedDate, isNull);
       expect(
         (await retry.select(retry.localMigrationMetadata).getSingle())
             .targetSchemaVersion,
-        12,
+        13,
       );
       await retry.close();
     },
@@ -66,7 +66,7 @@ void main() {
         "INSERT INTO daily_priority_tasks (priority_date,task_id,position) VALUES ('2026-03-02','retained',0)",
       );
       final db = AppDatabase(schema.newConnection());
-      await verifier.migrateAndValidate(db, 12);
+      await verifier.migrateAndValidate(db, 13);
       final task = await db.select(db.tasks).getSingle();
       expect(task.id, 'retained');
       expect(task.dueDate, '2026-03-01');
@@ -94,7 +94,7 @@ void main() {
         "INSERT INTO word_audio_preferences (id, voice_key, playback_rate) VALUES ('reader', 'retained', 0.5)",
       );
       final database = AppDatabase(schema.newConnection());
-      await verifier.migrateAndValidate(database, 12);
+      await verifier.migrateAndValidate(database, 13);
       expect(
         (await database.select(database.tasks).getSingle()).title,
         'Preserved task',
@@ -147,7 +147,7 @@ void main() {
     schema.rawDatabase.execute('DROP TRIGGER reject_v11');
     final retry = AppDatabase(schema.newConnection());
     addTearDown(retry.close);
-    await verifier.migrateAndValidate(retry, 12);
+    await verifier.migrateAndValidate(retry, 13);
     expect((await retry.select(retry.tasks).getSingle()).title, 'Keep me');
   });
 
@@ -171,7 +171,7 @@ void main() {
     );
     final db = AppDatabase(schema.newConnection());
     addTearDown(db.close);
-    await verifier.migrateAndValidate(db, 12);
+    await verifier.migrateAndValidate(db, 13);
     final task = await db.select(db.tasks).getSingle();
     expect(task.id, 'retained');
     expect(task.isCompleted, isTrue);
@@ -186,7 +186,7 @@ void main() {
     );
     expect(await db.select(db.taskSubtasks).get(), isEmpty);
     final marker = await db.select(db.localMigrationMetadata).getSingle();
-    expect(marker.targetSchemaVersion, 12);
+    expect(marker.targetSchemaVersion, 13);
     expect(marker.sourceFingerprint, 'retained');
   });
 
@@ -203,7 +203,7 @@ void main() {
       );
       final db = AppDatabase(schema.newConnection());
       addTearDown(db.close);
-      await verifier.migrateAndValidate(db, 12);
+      await verifier.migrateAndValidate(db, 13);
       final task = await db.select(db.tasks).getSingle();
       expect(task.title, 'Keep task');
       expect(task.recurrenceMask, isNull);
@@ -252,7 +252,7 @@ void main() {
       schema.rawDatabase.execute('DROP TRIGGER reject_v12');
       final retry = AppDatabase(schema.newConnection());
       addTearDown(retry.close);
-      await verifier.migrateAndValidate(retry, 12);
+      await verifier.migrateAndValidate(retry, 13);
       expect(
         (await retry.select(retry.taskSubtasks).getSingle()).isCompleted,
         isTrue,
@@ -260,11 +260,72 @@ void main() {
     },
   );
 
-  test('committed Drift schema v12 matches the current database', () async {
+  test(
+    'v12 upgrade preserves recurrence and subtasks with reminders Off',
+    () async {
+      final verifier = SchemaVerifier(GeneratedHelper());
+      final schema = await verifier.schemaAt(12);
+      schema.rawDatabase.execute(
+        "INSERT INTO tasks (id,title,due_date,is_completed,completed_at_utc_micros,created_at_utc_micros,updated_at_utc_micros,recurrence_mask,repeat_handled) VALUES ('kept','Keep me','2026-11-17',1,3,1,3,16,1)",
+      );
+      schema.rawDatabase.execute(
+        "INSERT INTO task_subtasks (task_id,id,title,is_completed,position) VALUES ('kept','child','Keep checklist',1,0)",
+      );
+      final db = AppDatabase(schema.newConnection());
+      addTearDown(db.close);
+      await verifier.migrateAndValidate(db, 13);
+      final task = await db.select(db.tasks).getSingle();
+      expect(task.recurrenceMask, 16);
+      expect(task.repeatHandled, isTrue);
+      expect(task.isCompleted, isTrue);
+      expect(task.reminderMinutesLocal, isNull);
+      expect(task.reminderDismissedKey, isNull);
+      expect(
+        (await db.select(db.taskSubtasks).getSingle()).title,
+        'Keep checklist',
+      );
+    },
+  );
+
+  test('failed reminder upgrade rolls back columns and safely retries', () async {
     final verifier = SchemaVerifier(GeneratedHelper());
-    final connection = await verifier.startAt(12);
+    final schema = await verifier.schemaAt(12);
+    schema.rawDatabase.execute(
+      "INSERT INTO tasks (id,title,is_completed,created_at_utc_micros,updated_at_utc_micros,recurrence_mask) VALUES ('kept','Keep me',0,1,2,16)",
+    );
+    schema.rawDatabase.execute(
+      "INSERT INTO local_migration_metadata (migration_id,state,source_fingerprint,started_at_utc_micros,completed_at_utc_micros,target_schema_version) VALUES ('word_shared_preferences_v1_to_local_v1','completed','retained',1,2,12)",
+    );
+    schema.rawDatabase.execute(
+      "CREATE TRIGGER reject_v13 BEFORE UPDATE ON local_migration_metadata BEGIN SELECT RAISE(ABORT, 'synthetic reminder upgrade failure'); END",
+    );
+    final failed = AppDatabase(schema.newConnection());
+    await expectLater(failed.customSelect('SELECT 1').get(), throwsA(anything));
+    expect(
+      schema.rawDatabase
+          .select('PRAGMA table_info(tasks)')
+          .map((r) => r['name']),
+      isNot(contains('reminder_minutes_local')),
+    );
+    expect(
+      schema.rawDatabase
+          .select('SELECT recurrence_mask FROM tasks')
+          .single['recurrence_mask'],
+      16,
+    );
+    await failed.close();
+    schema.rawDatabase.execute('DROP TRIGGER reject_v13');
+    final retry = AppDatabase(schema.newConnection());
+    addTearDown(retry.close);
+    await verifier.migrateAndValidate(retry, 13);
+    expect((await retry.select(retry.tasks).getSingle()).recurrenceMask, 16);
+  });
+
+  test('committed Drift schema v13 matches the current database', () async {
+    final verifier = SchemaVerifier(GeneratedHelper());
+    final connection = await verifier.startAt(13);
     final database = AppDatabase(connection);
-    await verifier.migrateAndValidate(database, 12);
+    await verifier.migrateAndValidate(database, 13);
     await database.close();
   });
 
@@ -337,7 +398,7 @@ void main() {
         'synthetic-fingerprint', 1, 2, 6)
     ''');
       final database = AppDatabase(schema.newConnection());
-      await verifier.migrateAndValidate(database, 12);
+      await verifier.migrateAndValidate(database, 13);
       expect(
         (await database.select(database.biblePlans).getSingle()).title,
         'Preserved Plan',
@@ -381,7 +442,7 @@ void main() {
       expect(
         (await database.select(database.localMigrationMetadata).getSingle())
             .targetSchemaVersion,
-        12,
+        13,
       );
       await database.close();
     },
@@ -421,7 +482,7 @@ void main() {
     ''');
 
     final database = AppDatabase(schema.newConnection());
-    await verifier.migrateAndValidate(database, 12);
+    await verifier.migrateAndValidate(database, 13);
     expect(
       (await database.select(database.biblePlans).getSingle()).title,
       'Preserved Plan',
@@ -437,7 +498,7 @@ void main() {
     expect(
       (await database.select(database.localMigrationMetadata).getSingle())
           .targetSchemaVersion,
-      12,
+      13,
     );
     await database.close();
   });
@@ -456,12 +517,12 @@ void main() {
     ''');
 
     final database = AppDatabase(schema.newConnection());
-    await verifier.migrateAndValidate(database, 12);
+    await verifier.migrateAndValidate(database, 13);
     expect(await database.select(database.wordAudioPreferences).get(), isEmpty);
     expect(
       (await database.select(database.localMigrationMetadata).getSingle())
           .targetSchemaVersion,
-      12,
+      13,
     );
     await database.close();
   });
@@ -484,7 +545,7 @@ void main() {
       )
     ''');
     final database = AppDatabase(schema.newConnection());
-    await verifier.migrateAndValidate(database, 12);
+    await verifier.migrateAndValidate(database, 13);
     expect(
       (await database.select(database.wordReaderStates).getSingle()).chapter,
       8,
@@ -496,7 +557,7 @@ void main() {
     expect(
       (await database.select(database.localMigrationMetadata).getSingle())
           .targetSchemaVersion,
-      12,
+      13,
     );
     await database.close();
   });
@@ -519,7 +580,7 @@ void main() {
         'synthetic-fingerprint', 1, 2, 5)
     ''');
     final database = AppDatabase(schema.newConnection());
-    await verifier.migrateAndValidate(database, 12);
+    await verifier.migrateAndValidate(database, 13);
     final note = await database.select(database.wordScriptureNotes).getSingle();
     final anchor = await database
         .select(database.wordScriptureNoteAnchors)
@@ -547,7 +608,7 @@ void main() {
     expect(
       (await database.select(database.localMigrationMetadata).getSingle())
           .targetSchemaVersion,
-      12,
+      13,
     );
     await database.close();
   });
@@ -576,7 +637,7 @@ void main() {
     ''');
 
     final database = AppDatabase(schema.newConnection());
-    await verifier.migrateAndValidate(database, 12);
+    await verifier.migrateAndValidate(database, 13);
     expect(
       (await database.select(database.biblePlans).getSingle()).title,
       'Preserved Plan',
@@ -585,7 +646,7 @@ void main() {
     expect(
       (await database.select(database.localMigrationMetadata).getSingle())
           .targetSchemaVersion,
-      12,
+      13,
     );
     await database.close();
   });

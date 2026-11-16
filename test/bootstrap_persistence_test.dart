@@ -84,7 +84,7 @@ void main() {
           final schema = await current!.database
               .customSelect('PRAGMA user_version')
               .getSingle();
-          expect(schema.read<int>('user_version'), 12);
+          expect(schema.read<int>('user_version'), 13);
           expect(
             await File(
               '${profile.path}/support/database/new_man.sqlite',

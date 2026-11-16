@@ -16,7 +16,7 @@ Presentation code composes application services and domain models. Repositories 
 
 ## Persistence and compatibility
 
-Drift/SQLite is the authoritative local store for migrated Word and task state. Schema snapshots v1 through v12 and corresponding migration tests are included. Historical preferences, recovery behavior, and compatibility layers are retained. Before legacy Word data is migrated, its recovery snapshot must match the exact source bytes and SHA-256 fingerprint. An existing mismatched or truncated snapshot stops migration without replacing that file or writing target data. Concurrent backup attempts use separate staging directories and verify the published snapshot. This is migration backup protection; it does not provide a general user-facing restore workflow.
+Drift/SQLite is the authoritative local store for migrated Word and task state. Schema snapshots v1 through v13 and corresponding migration tests are included. Historical preferences, recovery behavior, and compatibility layers are retained. Before legacy Word data is migrated, its recovery snapshot must match the exact source bytes and SHA-256 fingerprint. An existing mismatched or truncated snapshot stops migration without replacing that file or writing target data. Concurrent backup attempts use separate staging directories and verify the published snapshot. This is migration backup protection; it does not provide a general user-facing restore workflow.
 
 The Android beta application ID is com.newman.newmanapp.beta. It is separate from production and does not automatically inherit production data. This source snapshot preserves the retained beta build configuration. Existing Windows runner files are preserved without a new platform-qualification claim.
 

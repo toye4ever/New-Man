@@ -61,8 +61,8 @@ void main() {
     (await database.select(database.wordTranslationStates).get()).length,
   ];
 
-  test('schema v12 creates approved tables, index, and foreign keys', () async {
-    expect(database.schemaVersion, 12);
+  test('schema v13 creates approved tables, index, and foreign keys', () async {
+    expect(database.schemaVersion, 13);
     final tables = await database
         .customSelect(
           "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
@@ -115,7 +115,7 @@ void main() {
     expect(priorityForeignKeys.single.read<String>('on_delete'), 'CASCADE');
   });
 
-  test('fresh v12 enforces Task and Daily Priority constraints', () async {
+  test('fresh v13 enforces Task and Daily Priority constraints', () async {
     Future<void> insertTask({
       required String id,
       required String title,

@@ -32,7 +32,7 @@ source; turn its repeat rule Off to complete without a successor.
 Successors copy the source's current title and ordered subtask titles, with every
 subtask unchecked. They have no time block or priority. The completed occurrence
 keeps its checklist, completion time, time block and priorities. This workflow
-requests no background execution, notification permissions or reminder delivery.
+requests no background execution or notification permissions. An opted-in in-app reminder time is inherited with a fresh acknowledgement; see TASK_REMINDERS.md.
 
 ## Manual next occurrence
 

@@ -66,6 +66,8 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
       : repeatMode == 1
       ? const TaskRecurrence.daily()
       : TaskRecurrence.weekly(repeatWeekdays);
+  late final TextEditingController reminderTime;
+  bool reminderEnabled = false;
   DateTime? due;
   DateTime? blockDay;
   bool saving = false;
@@ -93,6 +95,10 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
     ];
     title = TextEditingController(text: task?.title ?? '');
     due = task?.dueDate;
+    reminderEnabled = task?.reminderMinutesLocal != null;
+    reminderTime = TextEditingController(
+      text: _time(task?.reminderMinutesLocal ?? 540),
+    );
     blockDay = task?.timeBlock?.plannedDate;
     start = TextEditingController(
       text: task?.timeBlock == null
@@ -119,6 +125,7 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
 
   @override
   void dispose() {
+    reminderTime.dispose();
     title.dispose();
     start.dispose();
     end.dispose();
@@ -160,6 +167,22 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
     }
     if (canEditRepeat && repeatMode == 2 && repeatWeekdays.isEmpty) {
       setState(() => error = 'Choose at least one repeat weekday.');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final errorContext = errorKey.currentContext;
+        if (mounted && errorContext != null) {
+          Scrollable.ensureVisible(errorContext, alignment: 1);
+        }
+      });
+      return;
+    }
+    final reminderMinutes = reminderEnabled ? _parse(reminderTime.text) : null;
+    if (widget.service.supportsInAppReminders &&
+        reminderEnabled &&
+        (due == null || reminderMinutes == null || reminderMinutes >= 1440)) {
+      setState(
+        () => error =
+            'An in-app reminder needs a due date and a time from 00:00 to 23:59.',
+      );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final errorContext = errorKey.currentContext;
         if (mounted && errorContext != null) {
@@ -216,6 +239,7 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
           timeBlock: block,
           subtasks: checklist,
           recurrence: canEditRepeat ? repeatRule : null,
+          reminderMinutesLocal: reminderMinutes,
         );
       } else {
         await widget.service.saveEdit(
@@ -226,6 +250,8 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
           subtasks: checklist,
           recurrence: canEditRepeat ? repeatRule : task.recurrence,
           editRecurrence: canEditRepeat,
+          reminderMinutesLocal: reminderMinutes,
+          editReminder: widget.service.supportsInAppReminders,
         );
       }
       if (mounted) {
@@ -339,6 +365,29 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
                     : () => setState(() => blockDay = null),
                 child: const Text('Clear time block'),
               ),
+            ],
+            if (widget.service.supportsInAppReminders) ...[
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('In-app reminder'),
+                subtitle: const Text(
+                  'Shown in Today and Tasks while New Man is open. No background notifications.',
+                ),
+                value: reminderEnabled,
+                onChanged: saving
+                    ? null
+                    : (value) => setState(() => reminderEnabled = value),
+              ),
+              if (reminderEnabled)
+                TextField(
+                  controller: reminderTime,
+                  enabled: !saving,
+                  keyboardType: TextInputType.datetime,
+                  decoration: const InputDecoration(
+                    labelText: 'Reminder time (HH:mm)',
+                    helperText: 'Requires a due date. Local time, 00:00–23:59.',
+                  ),
+                ),
             ],
             if (widget.service.supportsAutomaticRepeats) ...[
               const SizedBox(height: 12),

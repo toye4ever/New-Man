@@ -74,6 +74,8 @@ class TaskDao {
             id: task.id,
             title: task.title.trim(),
             recurrenceMask: Value(task.recurrence?.weekdayMask),
+            reminderMinutesLocal: Value(task.reminderMinutesLocal),
+            reminderDismissedKey: Value(task.reminderDismissedKey),
             repeatHandled: Value(task.repeatHandled),
             dueDate: Value(
               task.dueDate == null ? null : localDateStorage(task.dueDate!),

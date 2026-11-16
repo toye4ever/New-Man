@@ -1,3 +1,4 @@
+import '../domain/task_reminder.dart';
 import '../domain/task_recurrence.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter/foundation.dart';
@@ -56,6 +57,7 @@ class TaskService extends ChangeNotifier {
     TaskTimeBlock? timeBlock,
     List<TaskSubtask> subtasks = const [],
     TaskRecurrence? recurrence,
+    int? reminderMinutesLocal,
   }) => _write(() async {
     final now = _clock().toUtc();
     final task = Task(
@@ -70,6 +72,7 @@ class TaskService extends ChangeNotifier {
       timeBlock: timeBlock,
       subtasks: subtasks,
       recurrence: recurrence,
+      reminderMinutesLocal: reminderMinutesLocal,
     );
     await repository.saveTask(task);
     return task;
@@ -83,6 +86,8 @@ class TaskService extends ChangeNotifier {
     List<TaskSubtask>? subtasks,
     TaskRecurrence? recurrence,
     bool editRecurrence = false,
+    int? reminderMinutesLocal,
+    bool editReminder = false,
   }) => _write(() async {
     final task = await _current(original.id);
     final subtaskChange =
@@ -103,6 +108,12 @@ class TaskService extends ChangeNotifier {
         'The repeat rule changed. Reopen the task before editing.',
       );
     }
+    final reminderChanged =
+        editReminder && reminderMinutesLocal != original.reminderMinutesLocal;
+    if (reminderChanged &&
+        task.reminderMinutesLocal != original.reminderMinutesLocal) {
+      throw StateError('The reminder changed. Reopen the task before editing.');
+    }
     final titleChanged = title.trim() != original.title;
     final dueChanged = dueDate != original.dueDate;
     final before = original.timeBlock;
@@ -120,6 +131,11 @@ class TaskService extends ChangeNotifier {
         subtasks: subtaskChange ? subtasks : null,
         recurrence: recurrenceChanged ? recurrence : null,
         clearRecurrence: recurrenceChanged && recurrence == null,
+        reminderMinutesLocal: reminderChanged ? reminderMinutesLocal : null,
+        clearReminder:
+            (reminderChanged && reminderMinutesLocal == null) ||
+            (dueChanged && dueDate == null),
+        clearReminderDismissal: reminderChanged || dueChanged,
         updatedAt: _clock().toUtc(),
       ),
     );
@@ -140,6 +156,9 @@ class TaskService extends ChangeNotifier {
             ? null
             : DateTime(dueDate.year, dueDate.month, dueDate.day),
         clearDueDate: clearDueDate,
+        clearReminder: clearDueDate,
+        clearReminderDismissal:
+            clearDueDate || (dueDate != null && dueDate != current.dueDate),
         updatedAt: updatedAt,
       ),
     );
@@ -184,6 +203,23 @@ class TaskService extends ChangeNotifier {
       )).copyWith(clearTimeBlock: true, updatedAt: _clock().toUtc()),
     ),
   );
+
+  bool get supportsInAppReminders => repository is TaskReminderRepository;
+
+  Future<void> dismissTaskReminder(Task task) => _write(() async {
+    final key = taskReminderKey(task);
+    final target = repository;
+    if (key == null) return;
+    if (target is! TaskReminderRepository) {
+      throw UnsupportedError('Reminder storage is unavailable.');
+    }
+    await (target as TaskReminderRepository).dismissReminder(
+      task.id,
+      key,
+      task.updatedAt,
+      _clock().toUtc(),
+    );
+  });
 
   bool get supportsAutomaticRepeats =>
       repository is AutomaticRepeatingTaskRepository;

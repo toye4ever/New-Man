@@ -1,3 +1,4 @@
+import '../../tasks/presentation/task_reminder_inbox.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../tasks/application/task_service.dart';
@@ -172,6 +173,8 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
                         ),
                     ],
                   ),
+                  if (c.service.supportsInAppReminders)
+                    TaskReminderInbox(service: c.service),
                   if (c.loading) const LinearProgressIndicator(),
                   if (c.error != null)
                     Row(

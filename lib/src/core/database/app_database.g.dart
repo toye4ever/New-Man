@@ -6655,6 +6655,29 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, StoredTaskRecord> {
     $customConstraints:
         'NULL CHECK (recurrence_mask IS NULL OR (typeof(recurrence_mask) = \'integer\' AND recurrence_mask BETWEEN 0 AND 127))',
   );
+  static const VerificationMeta _reminderMinutesLocalMeta =
+      const VerificationMeta('reminderMinutesLocal');
+  @override
+  late final GeneratedColumn<int> reminderMinutesLocal = GeneratedColumn<int>(
+    'reminder_minutes_local',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'NULL CHECK (reminder_minutes_local IS NULL OR (due_date IS NOT NULL AND typeof(reminder_minutes_local) = \'integer\' AND reminder_minutes_local BETWEEN 0 AND 1439))',
+  );
+  static const VerificationMeta _reminderDismissedKeyMeta =
+      const VerificationMeta('reminderDismissedKey');
+  @override
+  late final GeneratedColumn<String> reminderDismissedKey =
+      GeneratedColumn<String>(
+        'reminder_dismissed_key',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _repeatHandledMeta = const VerificationMeta(
     'repeatHandled',
   );
@@ -6723,6 +6746,8 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, StoredTaskRecord> {
     startMinutesLocal,
     endMinutesLocal,
     recurrenceMask,
+    reminderMinutesLocal,
+    reminderDismissedKey,
     repeatHandled,
     isCompleted,
     completedAtUtcMicros,
@@ -6793,6 +6818,24 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, StoredTaskRecord> {
         recurrenceMask.isAcceptableOrUnknown(
           data['recurrence_mask']!,
           _recurrenceMaskMeta,
+        ),
+      );
+    }
+    if (data.containsKey('reminder_minutes_local')) {
+      context.handle(
+        _reminderMinutesLocalMeta,
+        reminderMinutesLocal.isAcceptableOrUnknown(
+          data['reminder_minutes_local']!,
+          _reminderMinutesLocalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('reminder_dismissed_key')) {
+      context.handle(
+        _reminderDismissedKeyMeta,
+        reminderDismissedKey.isAcceptableOrUnknown(
+          data['reminder_dismissed_key']!,
+          _reminderDismissedKeyMeta,
         ),
       );
     }
@@ -6884,6 +6927,14 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, StoredTaskRecord> {
         DriftSqlType.int,
         data['${effectivePrefix}recurrence_mask'],
       ),
+      reminderMinutesLocal: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}reminder_minutes_local'],
+      ),
+      reminderDismissedKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reminder_dismissed_key'],
+      ),
       repeatHandled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}repeat_handled'],
@@ -6922,6 +6973,8 @@ class StoredTaskRecord extends DataClass
   final int? startMinutesLocal;
   final int? endMinutesLocal;
   final int? recurrenceMask;
+  final int? reminderMinutesLocal;
+  final String? reminderDismissedKey;
   final bool repeatHandled;
   final bool isCompleted;
   final int? completedAtUtcMicros;
@@ -6935,6 +6988,8 @@ class StoredTaskRecord extends DataClass
     this.startMinutesLocal,
     this.endMinutesLocal,
     this.recurrenceMask,
+    this.reminderMinutesLocal,
+    this.reminderDismissedKey,
     required this.repeatHandled,
     required this.isCompleted,
     this.completedAtUtcMicros,
@@ -6960,6 +7015,12 @@ class StoredTaskRecord extends DataClass
     }
     if (!nullToAbsent || recurrenceMask != null) {
       map['recurrence_mask'] = Variable<int>(recurrenceMask);
+    }
+    if (!nullToAbsent || reminderMinutesLocal != null) {
+      map['reminder_minutes_local'] = Variable<int>(reminderMinutesLocal);
+    }
+    if (!nullToAbsent || reminderDismissedKey != null) {
+      map['reminder_dismissed_key'] = Variable<String>(reminderDismissedKey);
     }
     map['repeat_handled'] = Variable<bool>(repeatHandled);
     map['is_completed'] = Variable<bool>(isCompleted);
@@ -6990,6 +7051,12 @@ class StoredTaskRecord extends DataClass
       recurrenceMask: recurrenceMask == null && nullToAbsent
           ? const Value.absent()
           : Value(recurrenceMask),
+      reminderMinutesLocal: reminderMinutesLocal == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reminderMinutesLocal),
+      reminderDismissedKey: reminderDismissedKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reminderDismissedKey),
       repeatHandled: Value(repeatHandled),
       isCompleted: Value(isCompleted),
       completedAtUtcMicros: completedAtUtcMicros == null && nullToAbsent
@@ -7013,6 +7080,12 @@ class StoredTaskRecord extends DataClass
       startMinutesLocal: serializer.fromJson<int?>(json['startMinutesLocal']),
       endMinutesLocal: serializer.fromJson<int?>(json['endMinutesLocal']),
       recurrenceMask: serializer.fromJson<int?>(json['recurrenceMask']),
+      reminderMinutesLocal: serializer.fromJson<int?>(
+        json['reminderMinutesLocal'],
+      ),
+      reminderDismissedKey: serializer.fromJson<String?>(
+        json['reminderDismissedKey'],
+      ),
       repeatHandled: serializer.fromJson<bool>(json['repeatHandled']),
       isCompleted: serializer.fromJson<bool>(json['isCompleted']),
       completedAtUtcMicros: serializer.fromJson<int?>(
@@ -7033,6 +7106,8 @@ class StoredTaskRecord extends DataClass
       'startMinutesLocal': serializer.toJson<int?>(startMinutesLocal),
       'endMinutesLocal': serializer.toJson<int?>(endMinutesLocal),
       'recurrenceMask': serializer.toJson<int?>(recurrenceMask),
+      'reminderMinutesLocal': serializer.toJson<int?>(reminderMinutesLocal),
+      'reminderDismissedKey': serializer.toJson<String?>(reminderDismissedKey),
       'repeatHandled': serializer.toJson<bool>(repeatHandled),
       'isCompleted': serializer.toJson<bool>(isCompleted),
       'completedAtUtcMicros': serializer.toJson<int?>(completedAtUtcMicros),
@@ -7049,6 +7124,8 @@ class StoredTaskRecord extends DataClass
     Value<int?> startMinutesLocal = const Value.absent(),
     Value<int?> endMinutesLocal = const Value.absent(),
     Value<int?> recurrenceMask = const Value.absent(),
+    Value<int?> reminderMinutesLocal = const Value.absent(),
+    Value<String?> reminderDismissedKey = const Value.absent(),
     bool? repeatHandled,
     bool? isCompleted,
     Value<int?> completedAtUtcMicros = const Value.absent(),
@@ -7068,6 +7145,12 @@ class StoredTaskRecord extends DataClass
     recurrenceMask: recurrenceMask.present
         ? recurrenceMask.value
         : this.recurrenceMask,
+    reminderMinutesLocal: reminderMinutesLocal.present
+        ? reminderMinutesLocal.value
+        : this.reminderMinutesLocal,
+    reminderDismissedKey: reminderDismissedKey.present
+        ? reminderDismissedKey.value
+        : this.reminderDismissedKey,
     repeatHandled: repeatHandled ?? this.repeatHandled,
     isCompleted: isCompleted ?? this.isCompleted,
     completedAtUtcMicros: completedAtUtcMicros.present
@@ -7093,6 +7176,12 @@ class StoredTaskRecord extends DataClass
       recurrenceMask: data.recurrenceMask.present
           ? data.recurrenceMask.value
           : this.recurrenceMask,
+      reminderMinutesLocal: data.reminderMinutesLocal.present
+          ? data.reminderMinutesLocal.value
+          : this.reminderMinutesLocal,
+      reminderDismissedKey: data.reminderDismissedKey.present
+          ? data.reminderDismissedKey.value
+          : this.reminderDismissedKey,
       repeatHandled: data.repeatHandled.present
           ? data.repeatHandled.value
           : this.repeatHandled,
@@ -7121,6 +7210,8 @@ class StoredTaskRecord extends DataClass
           ..write('startMinutesLocal: $startMinutesLocal, ')
           ..write('endMinutesLocal: $endMinutesLocal, ')
           ..write('recurrenceMask: $recurrenceMask, ')
+          ..write('reminderMinutesLocal: $reminderMinutesLocal, ')
+          ..write('reminderDismissedKey: $reminderDismissedKey, ')
           ..write('repeatHandled: $repeatHandled, ')
           ..write('isCompleted: $isCompleted, ')
           ..write('completedAtUtcMicros: $completedAtUtcMicros, ')
@@ -7139,6 +7230,8 @@ class StoredTaskRecord extends DataClass
     startMinutesLocal,
     endMinutesLocal,
     recurrenceMask,
+    reminderMinutesLocal,
+    reminderDismissedKey,
     repeatHandled,
     isCompleted,
     completedAtUtcMicros,
@@ -7156,6 +7249,8 @@ class StoredTaskRecord extends DataClass
           other.startMinutesLocal == this.startMinutesLocal &&
           other.endMinutesLocal == this.endMinutesLocal &&
           other.recurrenceMask == this.recurrenceMask &&
+          other.reminderMinutesLocal == this.reminderMinutesLocal &&
+          other.reminderDismissedKey == this.reminderDismissedKey &&
           other.repeatHandled == this.repeatHandled &&
           other.isCompleted == this.isCompleted &&
           other.completedAtUtcMicros == this.completedAtUtcMicros &&
@@ -7171,6 +7266,8 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
   final Value<int?> startMinutesLocal;
   final Value<int?> endMinutesLocal;
   final Value<int?> recurrenceMask;
+  final Value<int?> reminderMinutesLocal;
+  final Value<String?> reminderDismissedKey;
   final Value<bool> repeatHandled;
   final Value<bool> isCompleted;
   final Value<int?> completedAtUtcMicros;
@@ -7185,6 +7282,8 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
     this.startMinutesLocal = const Value.absent(),
     this.endMinutesLocal = const Value.absent(),
     this.recurrenceMask = const Value.absent(),
+    this.reminderMinutesLocal = const Value.absent(),
+    this.reminderDismissedKey = const Value.absent(),
     this.repeatHandled = const Value.absent(),
     this.isCompleted = const Value.absent(),
     this.completedAtUtcMicros = const Value.absent(),
@@ -7200,6 +7299,8 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
     this.startMinutesLocal = const Value.absent(),
     this.endMinutesLocal = const Value.absent(),
     this.recurrenceMask = const Value.absent(),
+    this.reminderMinutesLocal = const Value.absent(),
+    this.reminderDismissedKey = const Value.absent(),
     this.repeatHandled = const Value.absent(),
     required bool isCompleted,
     this.completedAtUtcMicros = const Value.absent(),
@@ -7219,6 +7320,8 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
     Expression<int>? startMinutesLocal,
     Expression<int>? endMinutesLocal,
     Expression<int>? recurrenceMask,
+    Expression<int>? reminderMinutesLocal,
+    Expression<String>? reminderDismissedKey,
     Expression<bool>? repeatHandled,
     Expression<bool>? isCompleted,
     Expression<int>? completedAtUtcMicros,
@@ -7234,6 +7337,10 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
       if (startMinutesLocal != null) 'start_minutes_local': startMinutesLocal,
       if (endMinutesLocal != null) 'end_minutes_local': endMinutesLocal,
       if (recurrenceMask != null) 'recurrence_mask': recurrenceMask,
+      if (reminderMinutesLocal != null)
+        'reminder_minutes_local': reminderMinutesLocal,
+      if (reminderDismissedKey != null)
+        'reminder_dismissed_key': reminderDismissedKey,
       if (repeatHandled != null) 'repeat_handled': repeatHandled,
       if (isCompleted != null) 'is_completed': isCompleted,
       if (completedAtUtcMicros != null)
@@ -7254,6 +7361,8 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
     Value<int?>? startMinutesLocal,
     Value<int?>? endMinutesLocal,
     Value<int?>? recurrenceMask,
+    Value<int?>? reminderMinutesLocal,
+    Value<String?>? reminderDismissedKey,
     Value<bool>? repeatHandled,
     Value<bool>? isCompleted,
     Value<int?>? completedAtUtcMicros,
@@ -7269,6 +7378,8 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
       startMinutesLocal: startMinutesLocal ?? this.startMinutesLocal,
       endMinutesLocal: endMinutesLocal ?? this.endMinutesLocal,
       recurrenceMask: recurrenceMask ?? this.recurrenceMask,
+      reminderMinutesLocal: reminderMinutesLocal ?? this.reminderMinutesLocal,
+      reminderDismissedKey: reminderDismissedKey ?? this.reminderDismissedKey,
       repeatHandled: repeatHandled ?? this.repeatHandled,
       isCompleted: isCompleted ?? this.isCompleted,
       completedAtUtcMicros: completedAtUtcMicros ?? this.completedAtUtcMicros,
@@ -7301,6 +7412,14 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
     }
     if (recurrenceMask.present) {
       map['recurrence_mask'] = Variable<int>(recurrenceMask.value);
+    }
+    if (reminderMinutesLocal.present) {
+      map['reminder_minutes_local'] = Variable<int>(reminderMinutesLocal.value);
+    }
+    if (reminderDismissedKey.present) {
+      map['reminder_dismissed_key'] = Variable<String>(
+        reminderDismissedKey.value,
+      );
     }
     if (repeatHandled.present) {
       map['repeat_handled'] = Variable<bool>(repeatHandled.value);
@@ -7335,6 +7454,8 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
           ..write('startMinutesLocal: $startMinutesLocal, ')
           ..write('endMinutesLocal: $endMinutesLocal, ')
           ..write('recurrenceMask: $recurrenceMask, ')
+          ..write('reminderMinutesLocal: $reminderMinutesLocal, ')
+          ..write('reminderDismissedKey: $reminderDismissedKey, ')
           ..write('repeatHandled: $repeatHandled, ')
           ..write('isCompleted: $isCompleted, ')
           ..write('completedAtUtcMicros: $completedAtUtcMicros, ')
@@ -12527,6 +12648,8 @@ typedef $$TasksTableCreateCompanionBuilder =
       Value<int?> startMinutesLocal,
       Value<int?> endMinutesLocal,
       Value<int?> recurrenceMask,
+      Value<int?> reminderMinutesLocal,
+      Value<String?> reminderDismissedKey,
       Value<bool> repeatHandled,
       required bool isCompleted,
       Value<int?> completedAtUtcMicros,
@@ -12543,6 +12666,8 @@ typedef $$TasksTableUpdateCompanionBuilder =
       Value<int?> startMinutesLocal,
       Value<int?> endMinutesLocal,
       Value<int?> recurrenceMask,
+      Value<int?> reminderMinutesLocal,
+      Value<String?> reminderDismissedKey,
       Value<bool> repeatHandled,
       Value<bool> isCompleted,
       Value<int?> completedAtUtcMicros,
@@ -12638,6 +12763,16 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
 
   ColumnFilters<int> get recurrenceMask => $composableBuilder(
     column: $table.recurrenceMask,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get reminderMinutesLocal => $composableBuilder(
+    column: $table.reminderMinutesLocal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reminderDismissedKey => $composableBuilder(
+    column: $table.reminderDismissedKey,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12761,6 +12896,16 @@ class $$TasksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get reminderMinutesLocal => $composableBuilder(
+    column: $table.reminderMinutesLocal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reminderDismissedKey => $composableBuilder(
+    column: $table.reminderDismissedKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get repeatHandled => $composableBuilder(
     column: $table.repeatHandled,
     builder: (column) => ColumnOrderings(column),
@@ -12822,6 +12967,16 @@ class $$TasksTableAnnotationComposer
 
   GeneratedColumn<int> get recurrenceMask => $composableBuilder(
     column: $table.recurrenceMask,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get reminderMinutesLocal => $composableBuilder(
+    column: $table.reminderMinutesLocal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get reminderDismissedKey => $composableBuilder(
+    column: $table.reminderDismissedKey,
     builder: (column) => column,
   );
 
@@ -12940,6 +13095,8 @@ class $$TasksTableTableManager
                 Value<int?> startMinutesLocal = const Value.absent(),
                 Value<int?> endMinutesLocal = const Value.absent(),
                 Value<int?> recurrenceMask = const Value.absent(),
+                Value<int?> reminderMinutesLocal = const Value.absent(),
+                Value<String?> reminderDismissedKey = const Value.absent(),
                 Value<bool> repeatHandled = const Value.absent(),
                 Value<bool> isCompleted = const Value.absent(),
                 Value<int?> completedAtUtcMicros = const Value.absent(),
@@ -12954,6 +13111,8 @@ class $$TasksTableTableManager
                 startMinutesLocal: startMinutesLocal,
                 endMinutesLocal: endMinutesLocal,
                 recurrenceMask: recurrenceMask,
+                reminderMinutesLocal: reminderMinutesLocal,
+                reminderDismissedKey: reminderDismissedKey,
                 repeatHandled: repeatHandled,
                 isCompleted: isCompleted,
                 completedAtUtcMicros: completedAtUtcMicros,
@@ -12970,6 +13129,8 @@ class $$TasksTableTableManager
                 Value<int?> startMinutesLocal = const Value.absent(),
                 Value<int?> endMinutesLocal = const Value.absent(),
                 Value<int?> recurrenceMask = const Value.absent(),
+                Value<int?> reminderMinutesLocal = const Value.absent(),
+                Value<String?> reminderDismissedKey = const Value.absent(),
                 Value<bool> repeatHandled = const Value.absent(),
                 required bool isCompleted,
                 Value<int?> completedAtUtcMicros = const Value.absent(),
@@ -12984,6 +13145,8 @@ class $$TasksTableTableManager
                 startMinutesLocal: startMinutesLocal,
                 endMinutesLocal: endMinutesLocal,
                 recurrenceMask: recurrenceMask,
+                reminderMinutesLocal: reminderMinutesLocal,
+                reminderDismissedKey: reminderDismissedKey,
                 repeatHandled: repeatHandled,
                 isCompleted: isCompleted,
                 completedAtUtcMicros: completedAtUtcMicros,

@@ -1,3 +1,4 @@
+import '../domain/task_reminder.dart';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../domain/task_recurrence.dart';
@@ -9,7 +10,8 @@ class DriftTaskRepository
     implements
         TaskRepository,
         RepeatingTaskRepository,
-        AutomaticRepeatingTaskRepository {
+        AutomaticRepeatingTaskRepository,
+        TaskReminderRepository {
   const DriftTaskRepository(this.dao);
   final TaskDao dao;
 
@@ -21,6 +23,8 @@ class DriftTaskRepository
           ? null
           : TaskRecurrence.fromWeekdayMask(record.recurrenceMask!),
       repeatHandled: record.repeatHandled,
+      reminderMinutesLocal: record.reminderMinutesLocal,
+      reminderDismissedKey: record.reminderDismissedKey,
       subtasks: [
         for (final item in stored.subtasks)
           TaskSubtask(
@@ -114,6 +118,7 @@ class DriftTaskRepository
       createdAt: now,
       updatedAt: now,
       recurrence: inheritRule ? rule : null,
+      reminderMinutesLocal: inheritRule ? current.reminderMinutesLocal : null,
       dueDate: nextTaskOccurrence(rule, current.dueDate, today),
       subtasks: [
         for (final item in current.subtasks)
@@ -153,6 +158,26 @@ class DriftTaskRepository
       );
     }
     return _ensureSuccessor(current, rule, today, now, inheritRule: false);
+  });
+
+  @override
+  Future<void> dismissReminder(
+    String taskId,
+    String expectedKey,
+    DateTime expectedUpdatedAt,
+    DateTime now,
+  ) => dao.database.transaction(() async {
+    final current = await loadTask(taskId);
+    if (current == null ||
+        current.updatedAt != expectedUpdatedAt ||
+        current.isCompleted ||
+        taskReminderKey(current) != expectedKey ||
+        current.reminderDismissedKey == expectedKey) {
+      return;
+    }
+    await dao.saveTask(
+      current.copyWith(reminderDismissedKey: expectedKey, updatedAt: now),
+    );
   });
 
   @override

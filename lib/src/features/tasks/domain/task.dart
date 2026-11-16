@@ -12,6 +12,8 @@ class Task {
     this.timeBlock,
     this.recurrence,
     this.repeatHandled = false,
+    this.reminderMinutesLocal,
+    this.reminderDismissedKey,
     Iterable<TaskSubtask> subtasks = const [],
   }) : id = id.trim(),
        title = title.trim(),
@@ -22,6 +24,14 @@ class Task {
        subtasks = List.unmodifiable(subtasks),
        createdAt = createdAt.toUtc(),
        updatedAt = updatedAt.toUtc() {
+    if (reminderMinutesLocal != null &&
+        (this.dueDate == null ||
+            reminderMinutesLocal! < 0 ||
+            reminderMinutesLocal! > 1439)) {
+      throw ArgumentError(
+        'An in-app reminder needs a due date and a valid local time.',
+      );
+    }
     if (this.id.isEmpty) throw ArgumentError.value(id, 'id');
     if (this.title.isEmpty) throw ArgumentError.value(title, 'title');
     if (this.subtasks.map((item) => item.id).toSet().length !=
@@ -33,6 +43,8 @@ class Task {
     }
   }
 
+  final int? reminderMinutesLocal;
+  final String? reminderDismissedKey;
   final TaskRecurrence? recurrence;
   final bool repeatHandled;
   final TaskTimeBlock? timeBlock;
@@ -60,9 +72,19 @@ class Task {
     TaskRecurrence? recurrence,
     bool clearRecurrence = false,
     bool? repeatHandled,
+    int? reminderMinutesLocal,
+    bool clearReminder = false,
+    String? reminderDismissedKey,
+    bool clearReminderDismissal = false,
     Iterable<TaskSubtask>? subtasks,
   }) => Task(
     id: id,
+    reminderMinutesLocal: clearReminder
+        ? null
+        : (reminderMinutesLocal ?? this.reminderMinutesLocal),
+    reminderDismissedKey: clearReminder || clearReminderDismissal
+        ? null
+        : (reminderDismissedKey ?? this.reminderDismissedKey),
     recurrence: clearRecurrence ? null : (recurrence ?? this.recurrence),
     repeatHandled: repeatHandled ?? this.repeatHandled,
     subtasks: subtasks ?? this.subtasks,

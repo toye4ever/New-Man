@@ -31,3 +31,12 @@ abstract interface class AutomaticRepeatingTaskRepository {
     DateTime today,
   );
 }
+
+abstract interface class TaskReminderRepository {
+  Future<void> dismissReminder(
+    String taskId,
+    String expectedKey,
+    DateTime expectedUpdatedAt,
+    DateTime now,
+  );
+}

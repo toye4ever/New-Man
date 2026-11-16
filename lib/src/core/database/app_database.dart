@@ -341,6 +341,10 @@ class Tasks extends Table {
   IntColumn get recurrenceMask => integer().nullable().customConstraint(
     'NULL CHECK (recurrence_mask IS NULL OR (typeof(recurrence_mask) = \'integer\' AND recurrence_mask BETWEEN 0 AND 127))',
   )();
+  IntColumn get reminderMinutesLocal => integer().nullable().customConstraint(
+    'NULL CHECK (reminder_minutes_local IS NULL OR (due_date IS NOT NULL AND typeof(reminder_minutes_local) = \'integer\' AND reminder_minutes_local BETWEEN 0 AND 1439))',
+  )();
+  TextColumn get reminderDismissedKey => text().nullable()();
   BoolColumn get repeatHandled =>
       boolean().withDefault(const Constant(false))();
   BoolColumn get isCompleted => boolean()();
@@ -436,7 +440,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.open() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -559,6 +563,16 @@ class AppDatabase extends _$AppDatabase {
           }
           await customStatement(
             "UPDATE local_migration_metadata SET target_schema_version = 12 "
+            "WHERE migration_id = 'word_shared_preferences_v1_to_local_v1' AND state = 'completed'",
+          );
+        }
+        if (from < 13) {
+          if (from >= 7) {
+            await migrator.addColumn(tasks, tasks.reminderMinutesLocal);
+            await migrator.addColumn(tasks, tasks.reminderDismissedKey);
+          }
+          await customStatement(
+            "UPDATE local_migration_metadata SET target_schema_version = 13 "
             "WHERE migration_id = 'word_shared_preferences_v1_to_local_v1' AND state = 'completed'",
           );
         }
