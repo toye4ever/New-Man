@@ -338,7 +338,15 @@ class GuardQualificationController {
   }
 
   Future<bool> end() async {
-    final ended = await _runCommand(_service.end, preserveEndAccess: true);
+    final ended = await _runCommand(() async {
+      final reply = await _service.end();
+      if (!reply.isSupported ||
+          reply.status != GuardQualificationStatus.ended) {
+        // A delivered response is not confirmation that restrictions ended.
+        throw const GuardQualificationUnavailable('End was not confirmed.');
+      }
+      return reply;
+    }, preserveEndAccess: true);
     if (ended && !_disposed) {
       _invalidateDraft();
       _mayBeActive = false;
@@ -398,8 +406,10 @@ class GuardQualificationController {
           preserveEndAccess ||
           _snapshot?.isActive == true;
       _message = startMayHaveSucceeded
-          ? 'Start result is uncertain. The test was not retried; status was refreshed.'
-          : 'The command result is uncertain. Status was refreshed.';
+          ? 'Start result is uncertain. The test was not retried.'
+          : preserveEndAccess
+          ? 'End was not confirmed. Check the status or use recovery.'
+          : 'The command result is uncertain. Check the test status.';
       try {
         final recovered = await _service.getStatus();
         if (!_canApply(generation)) return false;

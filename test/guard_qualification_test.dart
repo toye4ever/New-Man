@@ -1497,6 +1497,48 @@ void main() {
       expect(controller.mayBeActive, isFalse);
     });
 
+    test(
+      'preserves End recovery when Android returns a running lease',
+      () async {
+        final active = _snapshot(
+          status: GuardQualificationStatus.running,
+          remainingMillis: 15000,
+          selectedTargets: {GuardQualificationTarget.youtubeApp},
+          disclosureAccepted: true,
+          serviceConnected: true,
+        );
+        final service = _FakeService(
+          statuses: [
+            () => Future.value(active),
+            () =>
+                Future<GuardQualificationSnapshot>.error(StateError('offline')),
+          ],
+        )..endResult = Future.value(active);
+        final controller = GuardQualificationController(
+          service: service,
+          pollingInterval: null,
+        );
+        addTearDown(controller.dispose);
+        await controller.initialize();
+
+        expect(await controller.end(), isFalse);
+        expect(service.endCalls, 1);
+        expect(service.statusCalls, 2);
+        expect(controller.mayBeActive, isTrue);
+        expect(controller.hasAccessibilityRecoveryRoute, isTrue);
+        expect(controller.canStart, isFalse);
+        expect(controller.message, contains('End was not confirmed'));
+
+        service.endResult = Future.value(
+          _snapshot(status: GuardQualificationStatus.ended),
+        );
+        expect(await controller.end(), isTrue);
+        expect(service.endCalls, 2);
+        expect(controller.mayBeActive, isFalse);
+        expect(controller.hasAccessibilityRecoveryRoute, isTrue);
+      },
+    );
+
     test('late timed-out replies do not erase uncertainty', () async {
       const channel = MethodChannel(
         MethodChannelGuardQualificationGateway.channelName,
