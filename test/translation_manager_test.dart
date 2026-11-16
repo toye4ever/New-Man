@@ -19,6 +19,51 @@ import 'package:scripture_planner/src/features/word/translations/presentation/tr
 import 'package:scripture_planner/src/services/bible_version_repository.dart';
 
 void main() {
+  test(
+    'download and canonical validation failures preserve existing KJV after reopen',
+    () async {
+      for (final invalidPackage in [false, true]) {
+        final database = AppDatabase(NativeDatabase.memory());
+        final directory = await Directory.systemTemp.createTemp(
+          'synthetic-kjv-retained-',
+        );
+        final file = File('${directory.path}/kjv.json');
+        final old = jsonEncode({
+          'metadata': {'complete': true},
+          'books': {'Synthetic': {}},
+        });
+        await file.writeAsString(old);
+        final repository = DriftBibleVersionRepository(
+          WordTranslationStateDao(database),
+          httpClient: invalidPackage
+              ? _BytesClient([_vplZip('GEN 1:1 Synthetic incomplete archive')])
+              : _SequenceClient([503]),
+          kjvFileProvider: () async => file,
+        );
+        await expectLater(
+          repository.install(BibleTranslation.kjv),
+          throwsA(isA<TranslationInstallationException>()),
+        );
+        expect(await file.readAsString(), old);
+        final reopened = DriftBibleVersionRepository(
+          WordTranslationStateDao(database),
+          kjvFileProvider: () async => file,
+        );
+        expect(await reopened.isKjvInstalled(), isTrue);
+        expect(
+          (await reopened.loadTranslationState())
+              .installations[BibleTranslation.kjv]
+              ?.isInstalled,
+          isTrue,
+        );
+        repository.dispose();
+        reopened.dispose();
+        await database.close();
+        await directory.delete(recursive: true);
+      }
+    },
+  );
+
   test('catalog has stable unique IDs and truthful capabilities', () {
     expect(translationCatalog, hasLength(2));
     expect(

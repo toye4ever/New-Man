@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/bible_books.dart';
+import 'recoverable_kjv_file.dart';
 import '../features/word/translations/domain/translation_state.dart';
 import '../models/reading_plan.dart';
 
@@ -167,14 +168,7 @@ class BibleVersionRepository {
 
   Future<bool> isKjvInstalled() async {
     final file = await _kjvFileProvider();
-    if (!await file.exists()) return false;
-    try {
-      final decoded = jsonDecode(await file.readAsString());
-      return decoded is Map<String, dynamic> &&
-          (decoded['metadata'] as Map<String, dynamic>?)?['complete'] == true;
-    } catch (_) {
-      return false;
-    }
+    return await RecoverableKjvFile(file).read() != null;
   }
 
   Future<void> _downloadAndInstallKjv({
@@ -217,10 +211,7 @@ class BibleVersionRepository {
     await onProcessing();
     final payload = await _archiveConverter(bytes.takeBytes());
     final destination = await _kjvFileProvider();
-    final temporary = File('${destination.path}.download');
-    await temporary.writeAsString(jsonEncode(payload), flush: true);
-    if (await destination.exists()) await destination.delete();
-    await temporary.rename(destination.path);
+    await RecoverableKjvFile(destination).replace(jsonEncode(payload));
   }
 
   void dispose() {

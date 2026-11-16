@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -6,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../features/word/bible/application/scripture_repository.dart';
 import '../models/reading_plan.dart';
 import 'bible_version_repository.dart';
+import 'recoverable_kjv_file.dart';
 import '../models/scripture_reference.dart';
 import '../features/word/bible/application/scripture_search.dart';
 
@@ -14,6 +16,10 @@ export '../features/word/bible/application/scripture_repository.dart';
 abstract class ScriptureService implements ScriptureRepository {}
 
 class KjvScriptureService implements ScriptureService {
+  KjvScriptureService({Future<File> Function()? kjvFileProvider})
+    : _kjvFileProvider = kjvFileProvider ?? BibleVersionRepository.kjvDataFile;
+
+  final Future<File> Function() _kjvFileProvider;
   Map<String, dynamic>? _data;
 
   Future<List<SearchVerse>> searchVerses() async {
@@ -31,11 +37,9 @@ class KjvScriptureService implements ScriptureService {
     if (_data != null) {
       return _data!;
     }
-    final installedFile = await BibleVersionRepository.kjvDataFile();
-    final installedFileExists = await installedFile.exists();
-    final raw = installedFileExists
-        ? await installedFile.readAsString()
-        : await rootBundle.loadString('assets/data/kjv.json');
+    final installedFile = await _kjvFileProvider();
+    final raw = await RecoverableKjvFile(installedFile).read() ??
+        await rootBundle.loadString('assets/data/kjv.json');
     _data = jsonDecode(raw) as Map<String, dynamic>;
     return _data!;
   }
