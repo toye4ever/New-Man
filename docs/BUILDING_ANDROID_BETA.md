@@ -42,3 +42,22 @@ Contributor debug builds from the current source use `com.newman.newmanapp.beta.
 The retained application/build-input hashes were checked before this source snapshot was prepared. The existing APK received static and bounded Android runtime checks. Neither fact proves this fresh-checkout command succeeds or produces identical APK bytes.
 
 A new APK needs its own identity, signing, manifest, alignment, native-library, and bounded installation/startup checks. Publishing this unchanged source snapshot does not require rebuilding or replacing the already-published APK. Preserve the existing release tag and hash.
+
+## Check a newly built candidate manifest
+
+After building, use Android SDK `apkanalyzer` (with SDK build-tools installed)
+from the same SDK to inspect the merged APK manifest:
+
+```sh
+python3 tools/check_android_candidate.py release build/app/outputs/flutter-apk/app-release.apk
+python3 tools/check_android_candidate.py debug build/app/outputs/flutter-apk/app-debug.apk
+python3 -B -m unittest discover -s tools -p test_check_android_candidate.py
+```
+
+Use `--apkanalyzer /path/to/apkanalyzer` when it is not on PATH. The check
+requires backup disabled, the expected package identity and debuggable flag,
+and no accessibility service in release. Debug must use the separate `.dev`
+identity and contain exactly the protected Guard qualification service.
+An inspection failure exits 2; a rejected manifest exits 1. A passing manifest
+check does not qualify Guard behavior, signing, clean installation, or device
+flows. The historical beta predates containment and is not a new candidate.
