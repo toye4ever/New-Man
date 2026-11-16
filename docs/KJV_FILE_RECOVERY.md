@@ -79,11 +79,13 @@ root was introduced by this change.
 
 The pinned `path_provider_windows` 2.3.0 uses RoamingAppData plus sanitized
 executable CompanyName/ProductName (or executable-name fallback). Current
-[Runner.rc](../windows/runner/Runner.rc) declares `com.example` / `New Man`, yielding
-ordinary `%APPDATA%\com.example\New Man\bibles\kjv.json`. This is not the source
-checkout or Android path. Other binaries can supply different version resources;
-Windows debug/release with matching resources may share this directory, so do
-not assume Android `.dev` isolation on Windows. Dependency versions are recorded
+[Runner.rc](../windows/runner/Runner.rc) retains `com.example` / `New Man` for
+Release/Profile, yielding ordinary `%APPDATA%\com.example\New Man\bibles\kjv.json`.
+The [debug identity](WINDOWS_DEBUG_STORAGE.md) now selects `New Man Dev` for Debug,
+yielding `%APPDATA%\com.example\New Man Dev\bibles\kjv.json`; native runtime
+qualification is pending. This is not the source checkout or Android path. Older
+Debug and current Profile can still share the historical release directory;
+never assume those are isolated. Dependency versions are recorded
 in [pubspec.lock](../pubspec.lock); source review used their pinned implementations.
 
 Do not move/delete/repair real files using these examples. Actual Android/Windows
