@@ -237,3 +237,39 @@ It does not prove Debug's signer/certificate identity. Release absence of signin
 material remains the separate unsigned-container check, not a claim of signed
 release provenance. Record compiled-manifest, container, native-header and actual
 device evidence separately; do not infer device qualification from this gate.
+
+## Explicit ABI split for branch diagnostic APKs
+
+Run 43978763332 on `d1d22b0` compiled Debug successfully but the strict native
+checker found four dependency entries outside ARM64: `libdartjni.so` and
+`libdatastore_shared_counter.so` under both `armeabi-v7a` and `x86_64`.
+`--target-platform android-arm64` selected Flutter's ARM64 code without removing
+those dependency ABIs from the non-split APK. That artifact was ARM64-targeted,
+not ARM64-only; rejecting it under the strict diagnostic contract was expected.
+
+The pinned Flutter revision's
+[Gradle plugin](https://github.com/flutter/flutter/blob/058e0af2c2b57e369d905a03ac9748b0ebf543c6/packages/flutter_tools/gradle/src/main/kotlin/FlutterPlugin.kt)
+uses its supported ABI list for non-split dependency filtering. With
+`--split-per-abi`, it enables ABI splits, resets the list, disables the universal
+APK and includes the requested target ABI. Its
+[APK output selection](https://github.com/flutter/flutter/blob/058e0af2c2b57e369d905a03ac9748b0ebf543c6/packages/flutter_tools/lib/src/android/gradle.dart)
+then expects `app-arm64-v8a-debug.apk` / `app-arm64-v8a-release.apk`.
+
+Only this repository/ref-guarded feature workflow now passes both
+`--target-platform android-arm64 --split-per-abi` and selects those exact files.
+There is no fallback to a fat APK or allowlist bypass. Native ELF checks,
+notification/receiver/Guard containment, labels, backup policy and unsigned
+release checks are unchanged. Normal/local build defaults, Android Gradle
+configuration, signing and dependency pins are untouched. The verified Today
+harness remains a separate preceding commit with no changes.
+
+Flutter applies ABI-specific version codes to split APKs. These are temporary
+build-check outputs, not an approved install/release; record actual version codes
+before any separately authorized device work. No artifact upload is added.
+
+Portable regression fixtures reproduce all four dependency paths and prove both
+variants reject that fat layout while accepting the expected ARM64 split layout.
+YAML/Bash/context/output-path checks verify workflow wiring; they do not execute
+Gradle packaging. A fresh exact-head CI run must compile both splits and inspect
+the actual APKs before this correction is considered runtime verified. No new
+APK or device evidence is claimed from local tests.

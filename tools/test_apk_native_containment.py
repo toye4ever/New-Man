@@ -42,6 +42,24 @@ class NativeContainmentTests(unittest.TestCase):
         self.write([])
         self.assertTrue(verify_native_libraries(self.apk, 'debug'))
 
+    def test_observed_fat_apk_dependency_extras_require_explicit_split(self):
+        # Run 43978763332: ARM64 Flutter code plus non-target dependency ABIs.
+        primary = [(f'lib/arm64-v8a/{name}.so', elf()) for name in ('libflutter', 'libapp', 'libdartjni', 'libdatastore_shared_counter')]
+        extras = [
+            (f'lib/{abi}/{name}.so', elf(machine=machine, word_class=word_class))
+            for abi, machine, word_class in [('armeabi-v7a', 40, 1), ('x86_64', 62, 2)]
+            for name in ('libdartjni', 'libdatastore_shared_counter')
+        ]
+        for variant in ('debug', 'release'):
+            self.write(primary + extras)
+            failures = verify_native_libraries(self.apk, variant)
+            self.assertEqual(len(failures), 4)
+            for path, _ in extras:
+                self.assertTrue(any(path in failure for failure in failures))
+            # Expected split layout keeps the ARM64 copies and removes extras.
+            self.write(primary)
+            self.assertFalse(verify_native_libraries(self.apk, variant))
+
     def test_header_rejects_wrong_machine_class_and_truncation(self):
         for data in (elf(machine=62), elf(word_class=1), b'not ELF', elf()[:32]):
             self.write([('lib/arm64-v8a/libflutter.so', data)])

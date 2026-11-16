@@ -99,21 +99,21 @@ jobs:
           set -euo pipefail
           python3 tools/prepare_host_cmake.py --configure android/local.properties "$HOST_CMAKE_DIR"
           grep -Fq 'gradle-9.1.0-all.zip' android/gradle/wrapper/gradle-wrapper.properties
-          env 'ORG_GRADLE_PROJECT_android.builder.sdkDownload=false' flutter build apk --debug --target-platform android-arm64 --no-pub
+          env 'ORG_GRADLE_PROJECT_android.builder.sdkDownload=false' flutter build apk --debug --target-platform android-arm64 --split-per-abi --no-pub
           git diff --exit-code -- pubspec.lock android/app/build.gradle.kts android/settings.gradle.kts android/gradle/wrapper/gradle-wrapper.properties
       - name: Check the compiled APK manifest
         run: |
           set -euo pipefail
-          python3 tools/check_android_candidate.py debug build/app/outputs/flutter-apk/app-debug.apk --apkanalyzer "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
-          shasum -a 256 build/app/outputs/flutter-apk/app-debug.apk
+          python3 tools/check_android_candidate.py debug build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk --apkanalyzer "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
+          shasum -a 256 build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk
       - name: Optionally check unsigned release ARM64 candidate
         if: hashFiles('.ci/verify-unsigned-release') != ''
         run: |
           set -euo pipefail
           test "$(cat .ci/verify-unsigned-release)" = enabled
           grep -Fq 'signingConfig = null' android/app/build.gradle.kts
-          env 'ORG_GRADLE_PROJECT_android.builder.sdkDownload=false' flutter build apk --release --target-platform android-arm64 --no-pub
-          apk=build/app/outputs/flutter-apk/app-release.apk
+          env 'ORG_GRADLE_PROJECT_android.builder.sdkDownload=false' flutter build apk --release --target-platform android-arm64 --split-per-abi --no-pub
+          apk=build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
           python3 tools/check_unsigned_apk.py "$apk"
           python3 tools/check_android_candidate.py release "$apk" --apkanalyzer "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
           shasum -a 256 "$apk"
