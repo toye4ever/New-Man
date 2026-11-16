@@ -5,7 +5,11 @@ import '../application/task_repository.dart';
 import '../domain/task.dart';
 import 'local/task_dao.dart';
 
-class DriftTaskRepository implements TaskRepository, RepeatingTaskRepository {
+class DriftTaskRepository
+    implements
+        TaskRepository,
+        RepeatingTaskRepository,
+        AutomaticRepeatingTaskRepository {
   const DriftTaskRepository(this.dao);
   final TaskDao dao;
 
@@ -13,6 +17,10 @@ class DriftTaskRepository implements TaskRepository, RepeatingTaskRepository {
     final record = stored.task;
     return Task(
       id: record.id,
+      recurrence: record.recurrenceMask == null
+          ? null
+          : TaskRecurrence.fromWeekdayMask(record.recurrenceMask!),
+      repeatHandled: record.repeatHandled,
       subtasks: [
         for (final item in stored.subtasks)
           TaskSubtask(
@@ -63,6 +71,60 @@ class DriftTaskRepository implements TaskRepository, RepeatingTaskRepository {
   }
 
   @override
+  Future<void> setCompletedWithRecurrence(
+    String taskId,
+    bool completed,
+    DateTime now,
+    DateTime today,
+  ) => dao.database.transaction(() async {
+    final current = await loadTask(taskId);
+    if (current == null) throw StateError('Task no longer exists.');
+    if (current.isCompleted == completed) return;
+    var updated = current.copyWith(
+      isCompleted: completed,
+      completedAt: completed ? now : null,
+      clearCompletedAt: !completed,
+      updatedAt: now,
+    );
+    final rule = current.recurrence;
+    if (completed && rule != null && !current.repeatHandled) {
+      await _ensureSuccessor(current, rule, today, now, inheritRule: true);
+      updated = updated.copyWith(repeatHandled: true);
+    }
+    await dao.saveTask(updated);
+  });
+
+  Future<Task> _ensureSuccessor(
+    Task current,
+    TaskRecurrence rule,
+    DateTime today,
+    DateTime now, {
+    required bool inheritRule,
+  }) async {
+    final id = const Uuid().v5(
+      Namespace.url.value,
+      'new-man/task-repeat/${current.id}',
+    );
+    final existing = await loadTask(id);
+    if (existing != null) return existing;
+    final next = Task(
+      id: id,
+      title: current.title,
+      isCompleted: false,
+      createdAt: now,
+      updatedAt: now,
+      recurrence: inheritRule ? rule : null,
+      dueDate: nextTaskOccurrence(rule, current.dueDate, today),
+      subtasks: [
+        for (final item in current.subtasks)
+          TaskSubtask(id: item.id, title: item.title),
+      ],
+    );
+    await dao.saveTask(next);
+    return next;
+  }
+
+  @override
   Future<Task> repeatCompletedTask({
     required Task source,
     required TaskRecurrence rule,
@@ -90,20 +152,7 @@ class DriftTaskRepository implements TaskRepository, RepeatingTaskRepository {
         'The task changed. Reopen it before scheduling a repeat.',
       );
     }
-    final next = Task(
-      id: id,
-      title: current.title,
-      isCompleted: false,
-      createdAt: now,
-      updatedAt: now,
-      dueDate: nextTaskOccurrence(rule, current.dueDate, today),
-      subtasks: [
-        for (final item in current.subtasks)
-          TaskSubtask(id: item.id, title: item.title),
-      ],
-    );
-    await dao.saveTask(next);
-    return next;
+    return _ensureSuccessor(current, rule, today, now, inheritRule: false);
   });
 
   @override

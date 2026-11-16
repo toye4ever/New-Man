@@ -194,12 +194,19 @@ class _TasksScreenState extends State<TasksScreen> with WidgetsBindingObserver {
                               ),
                       ),
                       title: Text(task.title),
-                      subtitle: task.dueDate == null && task.subtasks.isEmpty
+                      subtitle:
+                          task.dueDate == null &&
+                              task.subtasks.isEmpty &&
+                              task.recurrence == null
                           ? null
                           : Text(
                               [
                                 if (task.dueDate != null)
                                   'Due ${DateFormat.yMMMd().format(task.dueDate!)}',
+                                if (task.recurrence != null)
+                                  task.recurrence!.isDaily
+                                      ? 'Repeats daily on completion'
+                                      : 'Repeats on selected weekdays',
                                 if (task.subtasks.isNotEmpty)
                                   '${task.completedSubtaskCount} of ${task.subtasks.length} subtasks complete',
                               ].join(' • '),

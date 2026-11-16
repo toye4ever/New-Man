@@ -149,7 +149,7 @@ void main() {
       }
       final db = AppDatabase(schema.newConnection());
       try {
-        await verifier.migrateAndValidate(db, 10);
+        await verifier.migrateAndValidate(db, 12);
         final plan = (await WordPlanDao(db).loadPlans()).single;
         expect(plan.assignments.map((day) => day.completedChapterCount), [
           3,

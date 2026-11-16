@@ -1,31 +1,51 @@
-# Explicit task repeats
+# Task recurrence
 
-In Tasks, complete a task and choose its repeat icon, then choose Daily or
-Selected weekdays. The dialog previews the next date. Schedule task saves one
-independent open task; Cancel changes nothing. This is a manual next-occurrence
-workflow, not an automatically persisted recurring series. Completing either
-task does not create further tasks or schedule platform notifications.
+Repeat on completion is Off by default in the task editor. An open task can opt
+in to Daily or Selected weekdays (at least one day). The selected rule is saved
+on that occurrence and inherited by its successor. Saving or editing a rule
+alone creates no task. Completing an open occurrence creates at most one next
+open occurrence in the same transaction as its completion and ordered checklist.
+A failed child insert or parent update rolls back everything, leaving the source
+incomplete and safe to retry.
+
+Set Repeat on completion to Off on the next open occurrence to stop. Changing
+its title, date, checklist or weekdays affects that occurrence and the future
+successor created from it; it does not rewrite completed history or any existing
+successor. Completed or previously handled occurrences do not offer rule edits;
+edit the next open occurrence instead. A completed ordinary task can be reopened
+to opt in before completion if it has not already handled a recurring completion.
+
+A persisted handled flag and stable successor ID prevent duplicates across
+retries and restarts. A repeated completion request does not change the original
+completion timestamp. Reopening does not remove a successor, and completing an
+already handled occurrence again does not create another—even if its successor
+was deleted. Deleting an occurrence never deletes other occurrences; deleting
+the pending successor stops that chain. No tasks appear merely as time passes.
 
 The next due date is strictly after the later of the source due date and today's
-local calendar date. Undated tasks use today. Missed occurrences are skipped;
-there is no catch-up backlog. Calendar arithmetic uses the existing recurrence
-engine, not elapsed 24-hour intervals, and skips nonexistent local dates. The
-save recalculates using the current clock if the dialog spans midnight.
+local calendar date. Undated tasks use today. Missed dates are skipped rather
+than creating a backlog. Calendar arithmetic uses the recurrence engine rather
+than elapsed 24-hour intervals and skips nonexistent local dates. If no valid
+future date remains through year 9999, completion fails without changing the
+source; turn its repeat rule Off to complete without a successor.
 
-The completed source, its completion time, checklist, time block and priorities
-remain intact. The new task copies its current title and ordered subtask titles,
-with every subtask unchecked; it has no time block or priority. Saves are atomic,
-including children. A failed save leaves no partial successor. Open, deleted or
-changed source tasks cannot create a successor from a stale dialog.
+Successors copy the source's current title and ordered subtask titles, with every
+subtask unchecked. They have no time block or priority. The completed occurrence
+keeps its checklist, completion time, time block and priorities. This workflow
+requests no background execution, notification permissions or reminder delivery.
 
-Each source has a stable successor identifier. Repeating the action, including
-after restarting, returns that successor unchanged, even if a different date
-rule is selected. Editing its title, date or checklist is preserved. The result
-message shows its actual saved date. Deleting the source does not delete its
-successor; deleting the successor does not reopen the source. After explicitly
-deleting a successor, the source can create a replacement through this action.
-Reopening and completing the source does not create anything automatically.
-To advance again, complete the successor and explicitly schedule its next task.
+## Manual next occurrence
 
-Schema v11 and its subtask records are unchanged by this workflow. Automatic
-series rules, exceptions, and reminder delivery remain separate work.
+The repeat icon on completed Tasks rows still opens Schedule next occurrence.
+It previews Daily or Selected weekdays and creates one independent task with
+Repeat on completion Off. Cancel changes nothing. It shares the automatic
+workflow's successor ID: if either workflow already created that next task, the
+other returns it unchanged, preserving its rule and edits. Enabling automatic
+repeating on an ancestor does not change a manually scheduled successor; enable
+the rule on that open successor instead. The result message shows its actual
+saved date. After explicitly deleting a successor, manual scheduling can create
+a replacement, which starts with automatic repeating Off.
+
+Schema v12 adds a nullable weekday mask and a handled flag to tasks. Existing
+v11 tasks default to Off and not handled; subtasks, Word data and older schema
+snapshots remain intact. Daily uses mask 0; selected ISO weekdays use bits 0–6.

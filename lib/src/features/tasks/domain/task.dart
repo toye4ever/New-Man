@@ -1,3 +1,5 @@
+import 'task_recurrence.dart';
+
 class Task {
   Task({
     required String id,
@@ -8,6 +10,8 @@ class Task {
     DateTime? dueDate,
     DateTime? completedAt,
     this.timeBlock,
+    this.recurrence,
+    this.repeatHandled = false,
     Iterable<TaskSubtask> subtasks = const [],
   }) : id = id.trim(),
        title = title.trim(),
@@ -29,6 +33,8 @@ class Task {
     }
   }
 
+  final TaskRecurrence? recurrence;
+  final bool repeatHandled;
   final TaskTimeBlock? timeBlock;
   final List<TaskSubtask> subtasks;
   int get completedSubtaskCount =>
@@ -51,9 +57,14 @@ class Task {
     DateTime? updatedAt,
     TaskTimeBlock? timeBlock,
     bool clearTimeBlock = false,
+    TaskRecurrence? recurrence,
+    bool clearRecurrence = false,
+    bool? repeatHandled,
     Iterable<TaskSubtask>? subtasks,
   }) => Task(
     id: id,
+    recurrence: clearRecurrence ? null : (recurrence ?? this.recurrence),
+    repeatHandled: repeatHandled ?? this.repeatHandled,
     subtasks: subtasks ?? this.subtasks,
     timeBlock: clearTimeBlock ? null : (timeBlock ?? this.timeBlock),
     title: title ?? this.title,

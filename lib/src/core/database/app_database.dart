@@ -338,6 +338,11 @@ class Tasks extends Table {
   IntColumn get endMinutesLocal => integer().nullable().customConstraint(
     "NULL CHECK ((planned_date IS NULL AND start_minutes_local IS NULL AND end_minutes_local IS NULL) OR (planned_date IS NOT NULL AND start_minutes_local IS NOT NULL AND end_minutes_local IS NOT NULL AND planned_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' AND substr(planned_date, 1, 4) <> '0000' AND date(planned_date, '+0 days') IS planned_date AND typeof(start_minutes_local) = 'integer' AND typeof(end_minutes_local) = 'integer' AND start_minutes_local >= 0 AND start_minutes_local < end_minutes_local AND end_minutes_local <= 1440))",
   )();
+  IntColumn get recurrenceMask => integer().nullable().customConstraint(
+    'NULL CHECK (recurrence_mask IS NULL OR (typeof(recurrence_mask) = \'integer\' AND recurrence_mask BETWEEN 0 AND 127))',
+  )();
+  BoolColumn get repeatHandled =>
+      boolean().withDefault(const Constant(false))();
   BoolColumn get isCompleted => boolean()();
   IntColumn get completedAtUtcMicros => integer().nullable()();
   IntColumn get createdAtUtcMicros => integer()();
@@ -431,7 +436,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.open() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -542,6 +547,18 @@ class AppDatabase extends _$AppDatabase {
           await migrator.createTable(taskSubtasks);
           await customStatement(
             "UPDATE local_migration_metadata SET target_schema_version = 11 "
+            "WHERE migration_id = 'word_shared_preferences_v1_to_local_v1' AND state = 'completed'",
+          );
+        }
+        if (from < 12) {
+          // Pre-v7 profiles create the current Tasks table above, including
+          // these columns. Existing Task tables need additive columns only.
+          if (from >= 7) {
+            await migrator.addColumn(tasks, tasks.recurrenceMask);
+            await migrator.addColumn(tasks, tasks.repeatHandled);
+          }
+          await customStatement(
+            "UPDATE local_migration_metadata SET target_schema_version = 12 "
             "WHERE migration_id = 'word_shared_preferences_v1_to_local_v1' AND state = 'completed'",
           );
         }

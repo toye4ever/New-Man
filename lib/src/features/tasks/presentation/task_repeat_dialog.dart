@@ -136,7 +136,7 @@ class _TaskRepeatDialogState extends State<TaskRepeatDialog> {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Creates one task with unchecked subtasks. The completed task stays in history. Missed dates are skipped. No time block or priority is copied. Future repeats require this action again.',
+                  'Creates one independent task with automatic repeating Off and unchecked subtasks. The completed task stays in history. Missed dates are skipped. No time block or priority is copied. An already scheduled next task is returned unchanged, including its repeat rule.',
                 ),
                 if (error != null)
                   Semantics(

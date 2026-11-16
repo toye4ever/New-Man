@@ -22,3 +22,12 @@ abstract interface class RepeatingTaskRepository {
     required DateTime now,
   });
 }
+
+abstract interface class AutomaticRepeatingTaskRepository {
+  Future<void> setCompletedWithRecurrence(
+    String taskId,
+    bool completed,
+    DateTime now,
+    DateTime today,
+  );
+}

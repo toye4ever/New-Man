@@ -6642,6 +6642,34 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, StoredTaskRecord> {
     $customConstraints:
         'NULL CHECK ((planned_date IS NULL AND start_minutes_local IS NULL AND end_minutes_local IS NULL) OR (planned_date IS NOT NULL AND start_minutes_local IS NOT NULL AND end_minutes_local IS NOT NULL AND planned_date GLOB \'[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\' AND substr(planned_date, 1, 4) <> \'0000\' AND date(planned_date, \'+0 days\') IS planned_date AND typeof(start_minutes_local) = \'integer\' AND typeof(end_minutes_local) = \'integer\' AND start_minutes_local >= 0 AND start_minutes_local < end_minutes_local AND end_minutes_local <= 1440))',
   );
+  static const VerificationMeta _recurrenceMaskMeta = const VerificationMeta(
+    'recurrenceMask',
+  );
+  @override
+  late final GeneratedColumn<int> recurrenceMask = GeneratedColumn<int>(
+    'recurrence_mask',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'NULL CHECK (recurrence_mask IS NULL OR (typeof(recurrence_mask) = \'integer\' AND recurrence_mask BETWEEN 0 AND 127))',
+  );
+  static const VerificationMeta _repeatHandledMeta = const VerificationMeta(
+    'repeatHandled',
+  );
+  @override
+  late final GeneratedColumn<bool> repeatHandled = GeneratedColumn<bool>(
+    'repeat_handled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("repeat_handled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _isCompletedMeta = const VerificationMeta(
     'isCompleted',
   );
@@ -6694,6 +6722,8 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, StoredTaskRecord> {
     plannedDate,
     startMinutesLocal,
     endMinutesLocal,
+    recurrenceMask,
+    repeatHandled,
     isCompleted,
     completedAtUtcMicros,
     createdAtUtcMicros,
@@ -6754,6 +6784,24 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, StoredTaskRecord> {
         endMinutesLocal.isAcceptableOrUnknown(
           data['end_minutes_local']!,
           _endMinutesLocalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('recurrence_mask')) {
+      context.handle(
+        _recurrenceMaskMeta,
+        recurrenceMask.isAcceptableOrUnknown(
+          data['recurrence_mask']!,
+          _recurrenceMaskMeta,
+        ),
+      );
+    }
+    if (data.containsKey('repeat_handled')) {
+      context.handle(
+        _repeatHandledMeta,
+        repeatHandled.isAcceptableOrUnknown(
+          data['repeat_handled']!,
+          _repeatHandledMeta,
         ),
       );
     }
@@ -6832,6 +6880,14 @@ class $TasksTable extends Tasks with TableInfo<$TasksTable, StoredTaskRecord> {
         DriftSqlType.int,
         data['${effectivePrefix}end_minutes_local'],
       ),
+      recurrenceMask: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}recurrence_mask'],
+      ),
+      repeatHandled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}repeat_handled'],
+      )!,
       isCompleted: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_completed'],
@@ -6865,6 +6921,8 @@ class StoredTaskRecord extends DataClass
   final String? plannedDate;
   final int? startMinutesLocal;
   final int? endMinutesLocal;
+  final int? recurrenceMask;
+  final bool repeatHandled;
   final bool isCompleted;
   final int? completedAtUtcMicros;
   final int createdAtUtcMicros;
@@ -6876,6 +6934,8 @@ class StoredTaskRecord extends DataClass
     this.plannedDate,
     this.startMinutesLocal,
     this.endMinutesLocal,
+    this.recurrenceMask,
+    required this.repeatHandled,
     required this.isCompleted,
     this.completedAtUtcMicros,
     required this.createdAtUtcMicros,
@@ -6898,6 +6958,10 @@ class StoredTaskRecord extends DataClass
     if (!nullToAbsent || endMinutesLocal != null) {
       map['end_minutes_local'] = Variable<int>(endMinutesLocal);
     }
+    if (!nullToAbsent || recurrenceMask != null) {
+      map['recurrence_mask'] = Variable<int>(recurrenceMask);
+    }
+    map['repeat_handled'] = Variable<bool>(repeatHandled);
     map['is_completed'] = Variable<bool>(isCompleted);
     if (!nullToAbsent || completedAtUtcMicros != null) {
       map['completed_at_utc_micros'] = Variable<int>(completedAtUtcMicros);
@@ -6923,6 +6987,10 @@ class StoredTaskRecord extends DataClass
       endMinutesLocal: endMinutesLocal == null && nullToAbsent
           ? const Value.absent()
           : Value(endMinutesLocal),
+      recurrenceMask: recurrenceMask == null && nullToAbsent
+          ? const Value.absent()
+          : Value(recurrenceMask),
+      repeatHandled: Value(repeatHandled),
       isCompleted: Value(isCompleted),
       completedAtUtcMicros: completedAtUtcMicros == null && nullToAbsent
           ? const Value.absent()
@@ -6944,6 +7012,8 @@ class StoredTaskRecord extends DataClass
       plannedDate: serializer.fromJson<String?>(json['plannedDate']),
       startMinutesLocal: serializer.fromJson<int?>(json['startMinutesLocal']),
       endMinutesLocal: serializer.fromJson<int?>(json['endMinutesLocal']),
+      recurrenceMask: serializer.fromJson<int?>(json['recurrenceMask']),
+      repeatHandled: serializer.fromJson<bool>(json['repeatHandled']),
       isCompleted: serializer.fromJson<bool>(json['isCompleted']),
       completedAtUtcMicros: serializer.fromJson<int?>(
         json['completedAtUtcMicros'],
@@ -6962,6 +7032,8 @@ class StoredTaskRecord extends DataClass
       'plannedDate': serializer.toJson<String?>(plannedDate),
       'startMinutesLocal': serializer.toJson<int?>(startMinutesLocal),
       'endMinutesLocal': serializer.toJson<int?>(endMinutesLocal),
+      'recurrenceMask': serializer.toJson<int?>(recurrenceMask),
+      'repeatHandled': serializer.toJson<bool>(repeatHandled),
       'isCompleted': serializer.toJson<bool>(isCompleted),
       'completedAtUtcMicros': serializer.toJson<int?>(completedAtUtcMicros),
       'createdAtUtcMicros': serializer.toJson<int>(createdAtUtcMicros),
@@ -6976,6 +7048,8 @@ class StoredTaskRecord extends DataClass
     Value<String?> plannedDate = const Value.absent(),
     Value<int?> startMinutesLocal = const Value.absent(),
     Value<int?> endMinutesLocal = const Value.absent(),
+    Value<int?> recurrenceMask = const Value.absent(),
+    bool? repeatHandled,
     bool? isCompleted,
     Value<int?> completedAtUtcMicros = const Value.absent(),
     int? createdAtUtcMicros,
@@ -6991,6 +7065,10 @@ class StoredTaskRecord extends DataClass
     endMinutesLocal: endMinutesLocal.present
         ? endMinutesLocal.value
         : this.endMinutesLocal,
+    recurrenceMask: recurrenceMask.present
+        ? recurrenceMask.value
+        : this.recurrenceMask,
+    repeatHandled: repeatHandled ?? this.repeatHandled,
     isCompleted: isCompleted ?? this.isCompleted,
     completedAtUtcMicros: completedAtUtcMicros.present
         ? completedAtUtcMicros.value
@@ -7012,6 +7090,12 @@ class StoredTaskRecord extends DataClass
       endMinutesLocal: data.endMinutesLocal.present
           ? data.endMinutesLocal.value
           : this.endMinutesLocal,
+      recurrenceMask: data.recurrenceMask.present
+          ? data.recurrenceMask.value
+          : this.recurrenceMask,
+      repeatHandled: data.repeatHandled.present
+          ? data.repeatHandled.value
+          : this.repeatHandled,
       isCompleted: data.isCompleted.present
           ? data.isCompleted.value
           : this.isCompleted,
@@ -7036,6 +7120,8 @@ class StoredTaskRecord extends DataClass
           ..write('plannedDate: $plannedDate, ')
           ..write('startMinutesLocal: $startMinutesLocal, ')
           ..write('endMinutesLocal: $endMinutesLocal, ')
+          ..write('recurrenceMask: $recurrenceMask, ')
+          ..write('repeatHandled: $repeatHandled, ')
           ..write('isCompleted: $isCompleted, ')
           ..write('completedAtUtcMicros: $completedAtUtcMicros, ')
           ..write('createdAtUtcMicros: $createdAtUtcMicros, ')
@@ -7052,6 +7138,8 @@ class StoredTaskRecord extends DataClass
     plannedDate,
     startMinutesLocal,
     endMinutesLocal,
+    recurrenceMask,
+    repeatHandled,
     isCompleted,
     completedAtUtcMicros,
     createdAtUtcMicros,
@@ -7067,6 +7155,8 @@ class StoredTaskRecord extends DataClass
           other.plannedDate == this.plannedDate &&
           other.startMinutesLocal == this.startMinutesLocal &&
           other.endMinutesLocal == this.endMinutesLocal &&
+          other.recurrenceMask == this.recurrenceMask &&
+          other.repeatHandled == this.repeatHandled &&
           other.isCompleted == this.isCompleted &&
           other.completedAtUtcMicros == this.completedAtUtcMicros &&
           other.createdAtUtcMicros == this.createdAtUtcMicros &&
@@ -7080,6 +7170,8 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
   final Value<String?> plannedDate;
   final Value<int?> startMinutesLocal;
   final Value<int?> endMinutesLocal;
+  final Value<int?> recurrenceMask;
+  final Value<bool> repeatHandled;
   final Value<bool> isCompleted;
   final Value<int?> completedAtUtcMicros;
   final Value<int> createdAtUtcMicros;
@@ -7092,6 +7184,8 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
     this.plannedDate = const Value.absent(),
     this.startMinutesLocal = const Value.absent(),
     this.endMinutesLocal = const Value.absent(),
+    this.recurrenceMask = const Value.absent(),
+    this.repeatHandled = const Value.absent(),
     this.isCompleted = const Value.absent(),
     this.completedAtUtcMicros = const Value.absent(),
     this.createdAtUtcMicros = const Value.absent(),
@@ -7105,6 +7199,8 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
     this.plannedDate = const Value.absent(),
     this.startMinutesLocal = const Value.absent(),
     this.endMinutesLocal = const Value.absent(),
+    this.recurrenceMask = const Value.absent(),
+    this.repeatHandled = const Value.absent(),
     required bool isCompleted,
     this.completedAtUtcMicros = const Value.absent(),
     required int createdAtUtcMicros,
@@ -7122,6 +7218,8 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
     Expression<String>? plannedDate,
     Expression<int>? startMinutesLocal,
     Expression<int>? endMinutesLocal,
+    Expression<int>? recurrenceMask,
+    Expression<bool>? repeatHandled,
     Expression<bool>? isCompleted,
     Expression<int>? completedAtUtcMicros,
     Expression<int>? createdAtUtcMicros,
@@ -7135,6 +7233,8 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
       if (plannedDate != null) 'planned_date': plannedDate,
       if (startMinutesLocal != null) 'start_minutes_local': startMinutesLocal,
       if (endMinutesLocal != null) 'end_minutes_local': endMinutesLocal,
+      if (recurrenceMask != null) 'recurrence_mask': recurrenceMask,
+      if (repeatHandled != null) 'repeat_handled': repeatHandled,
       if (isCompleted != null) 'is_completed': isCompleted,
       if (completedAtUtcMicros != null)
         'completed_at_utc_micros': completedAtUtcMicros,
@@ -7153,6 +7253,8 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
     Value<String?>? plannedDate,
     Value<int?>? startMinutesLocal,
     Value<int?>? endMinutesLocal,
+    Value<int?>? recurrenceMask,
+    Value<bool>? repeatHandled,
     Value<bool>? isCompleted,
     Value<int?>? completedAtUtcMicros,
     Value<int>? createdAtUtcMicros,
@@ -7166,6 +7268,8 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
       plannedDate: plannedDate ?? this.plannedDate,
       startMinutesLocal: startMinutesLocal ?? this.startMinutesLocal,
       endMinutesLocal: endMinutesLocal ?? this.endMinutesLocal,
+      recurrenceMask: recurrenceMask ?? this.recurrenceMask,
+      repeatHandled: repeatHandled ?? this.repeatHandled,
       isCompleted: isCompleted ?? this.isCompleted,
       completedAtUtcMicros: completedAtUtcMicros ?? this.completedAtUtcMicros,
       createdAtUtcMicros: createdAtUtcMicros ?? this.createdAtUtcMicros,
@@ -7194,6 +7298,12 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
     }
     if (endMinutesLocal.present) {
       map['end_minutes_local'] = Variable<int>(endMinutesLocal.value);
+    }
+    if (recurrenceMask.present) {
+      map['recurrence_mask'] = Variable<int>(recurrenceMask.value);
+    }
+    if (repeatHandled.present) {
+      map['repeat_handled'] = Variable<bool>(repeatHandled.value);
     }
     if (isCompleted.present) {
       map['is_completed'] = Variable<bool>(isCompleted.value);
@@ -7224,6 +7334,8 @@ class TasksCompanion extends UpdateCompanion<StoredTaskRecord> {
           ..write('plannedDate: $plannedDate, ')
           ..write('startMinutesLocal: $startMinutesLocal, ')
           ..write('endMinutesLocal: $endMinutesLocal, ')
+          ..write('recurrenceMask: $recurrenceMask, ')
+          ..write('repeatHandled: $repeatHandled, ')
           ..write('isCompleted: $isCompleted, ')
           ..write('completedAtUtcMicros: $completedAtUtcMicros, ')
           ..write('createdAtUtcMicros: $createdAtUtcMicros, ')
@@ -12414,6 +12526,8 @@ typedef $$TasksTableCreateCompanionBuilder =
       Value<String?> plannedDate,
       Value<int?> startMinutesLocal,
       Value<int?> endMinutesLocal,
+      Value<int?> recurrenceMask,
+      Value<bool> repeatHandled,
       required bool isCompleted,
       Value<int?> completedAtUtcMicros,
       required int createdAtUtcMicros,
@@ -12428,6 +12542,8 @@ typedef $$TasksTableUpdateCompanionBuilder =
       Value<String?> plannedDate,
       Value<int?> startMinutesLocal,
       Value<int?> endMinutesLocal,
+      Value<int?> recurrenceMask,
+      Value<bool> repeatHandled,
       Value<bool> isCompleted,
       Value<int?> completedAtUtcMicros,
       Value<int> createdAtUtcMicros,
@@ -12517,6 +12633,16 @@ class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
 
   ColumnFilters<int> get endMinutesLocal => $composableBuilder(
     column: $table.endMinutesLocal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get recurrenceMask => $composableBuilder(
+    column: $table.recurrenceMask,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get repeatHandled => $composableBuilder(
+    column: $table.repeatHandled,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12630,6 +12756,16 @@ class $$TasksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get recurrenceMask => $composableBuilder(
+    column: $table.recurrenceMask,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get repeatHandled => $composableBuilder(
+    column: $table.repeatHandled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isCompleted => $composableBuilder(
     column: $table.isCompleted,
     builder: (column) => ColumnOrderings(column),
@@ -12681,6 +12817,16 @@ class $$TasksTableAnnotationComposer
 
   GeneratedColumn<int> get endMinutesLocal => $composableBuilder(
     column: $table.endMinutesLocal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get recurrenceMask => $composableBuilder(
+    column: $table.recurrenceMask,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get repeatHandled => $composableBuilder(
+    column: $table.repeatHandled,
     builder: (column) => column,
   );
 
@@ -12793,6 +12939,8 @@ class $$TasksTableTableManager
                 Value<String?> plannedDate = const Value.absent(),
                 Value<int?> startMinutesLocal = const Value.absent(),
                 Value<int?> endMinutesLocal = const Value.absent(),
+                Value<int?> recurrenceMask = const Value.absent(),
+                Value<bool> repeatHandled = const Value.absent(),
                 Value<bool> isCompleted = const Value.absent(),
                 Value<int?> completedAtUtcMicros = const Value.absent(),
                 Value<int> createdAtUtcMicros = const Value.absent(),
@@ -12805,6 +12953,8 @@ class $$TasksTableTableManager
                 plannedDate: plannedDate,
                 startMinutesLocal: startMinutesLocal,
                 endMinutesLocal: endMinutesLocal,
+                recurrenceMask: recurrenceMask,
+                repeatHandled: repeatHandled,
                 isCompleted: isCompleted,
                 completedAtUtcMicros: completedAtUtcMicros,
                 createdAtUtcMicros: createdAtUtcMicros,
@@ -12819,6 +12969,8 @@ class $$TasksTableTableManager
                 Value<String?> plannedDate = const Value.absent(),
                 Value<int?> startMinutesLocal = const Value.absent(),
                 Value<int?> endMinutesLocal = const Value.absent(),
+                Value<int?> recurrenceMask = const Value.absent(),
+                Value<bool> repeatHandled = const Value.absent(),
                 required bool isCompleted,
                 Value<int?> completedAtUtcMicros = const Value.absent(),
                 required int createdAtUtcMicros,
@@ -12831,6 +12983,8 @@ class $$TasksTableTableManager
                 plannedDate: plannedDate,
                 startMinutesLocal: startMinutesLocal,
                 endMinutesLocal: endMinutesLocal,
+                recurrenceMask: recurrenceMask,
+                repeatHandled: repeatHandled,
                 isCompleted: isCompleted,
                 completedAtUtcMicros: completedAtUtcMicros,
                 createdAtUtcMicros: createdAtUtcMicros,

@@ -55,6 +55,7 @@ class TaskService extends ChangeNotifier {
     DateTime? dueDate,
     TaskTimeBlock? timeBlock,
     List<TaskSubtask> subtasks = const [],
+    TaskRecurrence? recurrence,
   }) => _write(() async {
     final now = _clock().toUtc();
     final task = Task(
@@ -68,6 +69,7 @@ class TaskService extends ChangeNotifier {
       updatedAt: now,
       timeBlock: timeBlock,
       subtasks: subtasks,
+      recurrence: recurrence,
     );
     await repository.saveTask(task);
     return task;
@@ -79,12 +81,27 @@ class TaskService extends ChangeNotifier {
     DateTime? dueDate,
     TaskTimeBlock? timeBlock,
     List<TaskSubtask>? subtasks,
+    TaskRecurrence? recurrence,
+    bool editRecurrence = false,
   }) => _write(() async {
     final task = await _current(original.id);
     final subtaskChange =
         subtasks != null && !listEquals(subtasks, original.subtasks);
     if (subtaskChange && !listEquals(task.subtasks, original.subtasks)) {
       throw const TaskSubtaskEditConflict();
+    }
+    final recurrenceChanged =
+        editRecurrence &&
+        recurrence?.weekdayMask != original.recurrence?.weekdayMask;
+    if (recurrenceChanged && (task.isCompleted || task.repeatHandled)) {
+      throw StateError('Edit the next open occurrence to change repeating.');
+    }
+    if (recurrenceChanged &&
+        (task.recurrence?.weekdayMask != original.recurrence?.weekdayMask ||
+            task.isCompleted != original.isCompleted)) {
+      throw StateError(
+        'The repeat rule changed. Reopen the task before editing.',
+      );
     }
     final titleChanged = title.trim() != original.title;
     final dueChanged = dueDate != original.dueDate;
@@ -101,6 +118,8 @@ class TaskService extends ChangeNotifier {
         timeBlock: blockChanged ? timeBlock : null,
         clearTimeBlock: blockChanged && timeBlock == null,
         subtasks: subtaskChange ? subtasks : null,
+        recurrence: recurrenceChanged ? recurrence : null,
+        clearRecurrence: recurrenceChanged && recurrence == null,
         updatedAt: _clock().toUtc(),
       ),
     );
@@ -127,8 +146,19 @@ class TaskService extends ChangeNotifier {
   });
 
   Future<void> setCompleted(Task task, bool completed) => _write(() async {
-    final now = _clock().toUtc();
+    final localNow = _clock();
+    final now = localNow.toUtc();
+    final target = repository;
+    if (target is AutomaticRepeatingTaskRepository) {
+      await (target as AutomaticRepeatingTaskRepository)
+          .setCompletedWithRecurrence(task.id, completed, now, localNow);
+      return;
+    }
     final current = await _current(task.id);
+    if (current.recurrence != null) {
+      throw UnsupportedError('Atomic recurrence is unavailable.');
+    }
+    if (current.isCompleted == completed) return;
     await repository.saveTask(
       current.copyWith(
         isCompleted: completed,
@@ -154,6 +184,9 @@ class TaskService extends ChangeNotifier {
       )).copyWith(clearTimeBlock: true, updatedAt: _clock().toUtc()),
     ),
   );
+
+  bool get supportsAutomaticRepeats =>
+      repository is AutomaticRepeatingTaskRepository;
 
   bool get supportsExplicitRepeats => repository is RepeatingTaskRepository;
 

@@ -10,6 +10,20 @@ class TaskRecurrence {
   /// Selected ISO weekdays, sorted and immutable; empty for a daily rule.
   final List<int> weekdays;
 
+  /// Zero means daily; bits 0–6 select ISO weekdays.
+  int get weekdayMask =>
+      weekdays.fold(0, (mask, day) => mask | (1 << (day - 1)));
+
+  static TaskRecurrence fromWeekdayMask(int mask) {
+    if (mask < 0 || mask > 127) throw ArgumentError.value(mask, 'mask');
+    return mask == 0
+        ? const TaskRecurrence.daily()
+        : TaskRecurrence.weekly([
+            for (var day = 1; day <= 7; day++)
+              if (mask & (1 << (day - 1)) != 0) day,
+          ]);
+  }
+
   bool get isDaily => weekdays.isEmpty;
 
   /// Returns the first matching local calendar date strictly after [date].

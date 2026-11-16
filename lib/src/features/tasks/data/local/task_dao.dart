@@ -73,6 +73,8 @@ class TaskDao {
           TasksCompanion.insert(
             id: task.id,
             title: task.title.trim(),
+            recurrenceMask: Value(task.recurrence?.weekdayMask),
+            repeatHandled: Value(task.repeatHandled),
             dueDate: Value(
               task.dueDate == null ? null : localDateStorage(task.dueDate!),
             ),

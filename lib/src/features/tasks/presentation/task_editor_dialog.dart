@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../application/task_service.dart';
 import '../domain/task.dart';
+import '../domain/task_recurrence.dart';
 
 Future<bool> showTaskEditor(
   BuildContext context,
@@ -54,6 +55,17 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
   late final TextEditingController start;
   late final TextEditingController end;
   late final List<_SubtaskDraft> subtasks;
+  int repeatMode = 0;
+  final repeatWeekdays = <int>{};
+  bool get canEditRepeat =>
+      widget.service.supportsAutomaticRepeats &&
+      widget.task?.isCompleted != true &&
+      widget.task?.repeatHandled != true;
+  TaskRecurrence? get repeatRule => repeatMode == 0
+      ? null
+      : repeatMode == 1
+      ? const TaskRecurrence.daily()
+      : TaskRecurrence.weekly(repeatWeekdays);
   DateTime? due;
   DateTime? blockDay;
   bool saving = false;
@@ -64,6 +76,13 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
   void initState() {
     super.initState();
     final task = widget.task;
+    final rule = task?.recurrence;
+    repeatMode = rule == null
+        ? 0
+        : rule.isDaily
+        ? 1
+        : 2;
+    repeatWeekdays.addAll(rule?.weekdays ?? const []);
     subtasks = [
       for (final item in task?.subtasks ?? const <TaskSubtask>[])
         _SubtaskDraft(
@@ -139,6 +158,16 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
       setState(() => error = 'Enter a task title.');
       return;
     }
+    if (canEditRepeat && repeatMode == 2 && repeatWeekdays.isEmpty) {
+      setState(() => error = 'Choose at least one repeat weekday.');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final errorContext = errorKey.currentContext;
+        if (mounted && errorContext != null) {
+          Scrollable.ensureVisible(errorContext, alignment: 1);
+        }
+      });
+      return;
+    }
     final emptySubtask = subtasks.indexWhere(
       (item) => item.title.trim().isEmpty,
     );
@@ -186,6 +215,7 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
           dueDate: due,
           timeBlock: block,
           subtasks: checklist,
+          recurrence: canEditRepeat ? repeatRule : null,
         );
       } else {
         await widget.service.saveEdit(
@@ -194,6 +224,8 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
           dueDate: due,
           timeBlock: block,
           subtasks: checklist,
+          recurrence: canEditRepeat ? repeatRule : task.recurrence,
+          editRecurrence: canEditRepeat,
         );
       }
       if (mounted) {
@@ -307,6 +339,70 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
                     : () => setState(() => blockDay = null),
                 child: const Text('Clear time block'),
               ),
+            ],
+            if (widget.service.supportsAutomaticRepeats) ...[
+              const SizedBox(height: 12),
+              if (canEditRepeat) ...[
+                DropdownButtonFormField<int>(
+                  isExpanded: true,
+                  initialValue: repeatMode,
+                  decoration: const InputDecoration(
+                    labelText: 'Repeat on completion',
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 0, child: Text('Off')),
+                    DropdownMenuItem(value: 1, child: Text('Daily')),
+                    DropdownMenuItem(
+                      value: 2,
+                      child: Text(
+                        'Selected weekdays',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                  onChanged: saving
+                      ? null
+                      : (value) => setState(() => repeatMode = value ?? 0),
+                ),
+                if (repeatMode == 2)
+                  Wrap(
+                    spacing: 4,
+                    children: [
+                      for (var day = 1; day <= 7; day++)
+                        FilterChip(
+                          label: Text(
+                            const [
+                              'Mon',
+                              'Tue',
+                              'Wed',
+                              'Thu',
+                              'Fri',
+                              'Sat',
+                              'Sun',
+                            ][day - 1],
+                          ),
+                          selected: repeatWeekdays.contains(day),
+                          onSelected: saving
+                              ? null
+                              : (selected) => setState(() {
+                                  selected
+                                      ? repeatWeekdays.add(day)
+                                      : repeatWeekdays.remove(day);
+                                }),
+                        ),
+                    ],
+                  ),
+                if (repeatMode != 0)
+                  const Text(
+                    'Completion creates one next task with this rule and unchecked subtasks. Missed dates are skipped. Set the next open task to Off to stop. An already scheduled next task stays unchanged.',
+                  ),
+              ] else
+                Text(
+                  widget.task?.repeatHandled == true
+                      ? 'To change or stop repeating, edit the next open occurrence. Reopening this task does not schedule another copy.'
+                      : 'Reopen this task to enable or change repeating. If a next task already exists, edit its rule directly.',
+                ),
             ],
             if (subtasks.isNotEmpty)
               Semantics(
