@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/native.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scripture_planner/src/core/database/app_database.dart';
 import 'package:scripture_planner/src/core/database/migration/legacy_word_importer.dart';
@@ -309,6 +310,62 @@ void main() {
         rows.where((row) => row.translationId == 'nlt').single.state,
         'enabled',
       );
+    },
+  );
+
+  test(
+    'corrupt recovery snapshot blocks migration before target writes',
+    () async {
+      final support = await Directory.systemTemp.createTemp(
+        'newman-migration-recovery-',
+      );
+      addTearDown(() => support.delete(recursive: true));
+      final repository = DriftPlanRepository(WordPlanDao(database));
+      await repository.savePlans([
+        _domainPlan(
+          id: '123e4567-e89b-42d3-a456-426614174000',
+          title: 'Keep target',
+        ),
+      ]);
+      final preferences = SharedPreferencesAsync();
+      final raw = jsonEncode(await _fixtureList('plans_v1_current.json'));
+      await preferences.setString(
+        SharedPreferencesPlanRepository.storageKey,
+        raw,
+      );
+      final exact = jsonEncode({
+        'planStorageKey': SharedPreferencesPlanRepository.storageKey,
+        'planPayload': raw,
+        'translationStorageKey': BibleVersionRepository.storageKey,
+        'translationPayload': null,
+        'verifiedCompleteKjvFile': false,
+      });
+      final fingerprint = sha256.convert(utf8.encode(exact)).toString();
+      final snapshot = File(
+        '${support.path}/migration-recovery/word_$fingerprint.json',
+      );
+      await snapshot.parent.create(recursive: true);
+      await snapshot.writeAsString('truncated');
+      await expectLater(
+        LegacyWordImporter(
+          database: database,
+          recoveryBackup: FileWordRecoveryBackup(
+            supportDirectoryProvider: () async => support,
+          ),
+          isCompleteKjvInstalled: () async => false,
+        ).migrate(),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect((await repository.loadPlans()).single.title, 'Keep target');
+      expect(
+        await database.select(database.localMigrationMetadata).get(),
+        isEmpty,
+      );
+      expect(
+        await preferences.getString(SharedPreferencesPlanRepository.storageKey),
+        raw,
+      );
+      expect(await snapshot.readAsString(), 'truncated');
     },
   );
 
