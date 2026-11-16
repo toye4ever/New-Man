@@ -51,6 +51,17 @@ jobs:
           mkdir -p "$GRADLE_USER_HOME"
           # AGP must fail rather than downloading SDK packages.
           echo 'android.builder.sdkDownload=false' > "$GRADLE_USER_HOME/gradle.properties"
+      - name: Verify runner-local Kitware CMake 3.22.1 and Ninja
+        run: |
+          set -euo pipefail
+          command -v ninja
+          ninja --version
+          archive="$RUNNER_TEMP/cmake-3.22.1-macos-universal.tar.gz"
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --tlsv1.2 --connect-timeout 20 --max-time 180 https://github.com/Kitware/CMake/releases/download/v3.22.1/cmake-3.22.1-macos-universal.tar.gz --output "$archive"
+          HOST_CMAKE_DIR=$(python3 tools/prepare_host_cmake.py "$archive" "$RUNNER_TEMP/new-man-host-cmake")
+          test "$("$HOST_CMAKE_DIR/bin/cmake" --version | head -n 1)" = 'cmake version 3.22.1'
+          printf 'HOST_CMAKE_DIR=%s\n' "$HOST_CMAKE_DIR" >> "$GITHUB_ENV"
+          printf '%s/bin\n' "$HOST_CMAKE_DIR" >> "$GITHUB_PATH"
       - name: Check out pinned Flutter 3.44.8
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -85,6 +96,7 @@ jobs:
       - name: Build debug ARM64 from pinned inputs
         run: |
           set -euo pipefail
+          python3 tools/prepare_host_cmake.py --configure android/local.properties "$HOST_CMAKE_DIR"
           grep -Fq 'gradle-9.1.0-all.zip' android/gradle/wrapper/gradle-wrapper.properties
           env 'ORG_GRADLE_PROJECT_android.builder.sdkDownload=false' flutter build apk --debug --target-platform android-arm64 --no-pub
           git diff --exit-code -- pubspec.lock android/app/build.gradle.kts android/settings.gradle.kts android/gradle/wrapper/gradle-wrapper.properties

@@ -101,3 +101,33 @@ do not prove runner readiness or Android compilation. A passing debug ARM64
 build and compiled-manifest check remain distinct from installation and device
 smoke qualification. The workflow must be published with GitHub workflow-write
 access before a run can provide that evidence.
+
+Run 43955599219 passed SDK/NDK/JDK preflight and locked Flutter dependencies,
+then `configureCMakeDebug[arm64-v8a]` failed CXX1300 because CMake 3.22.1 was
+missing. The feature check now obtains Kitware's host macOS universal 3.22.1
+archive into runner temp, independently pins its SHA-256 in
+`tools/prepare_host_cmake.py`, verifies before extraction, and checks the actual
+binary version and preinstalled Ninja before Flutter setup. This is a host tool,
+not an Android SDK package. It does not run sdkmanager or change the version pin.
+
+The hash comes from Kitware's [official release checksum manifest](https://github.com/Kitware/CMake/releases/download/v3.22.1/cmake-3.22.1-SHA-256.txt),
+listed alongside its detached signature in the [release assets](https://github.com/Kitware/CMake/releases/expanded_assets/v3.22.1).
+The archive hash was verified locally; detached-signature verification is not
+claimed. The setup follows Android's [custom CMake instructions](https://developer.android.com/studio/projects/install-ndk#vanilla_cmake):
+add the installation bin directory to PATH, retain preinstalled Ninja, and set
+`cmake.dir` in ignored runner-local `android/local.properties` while preserving
+Flutter and SDK entries. Linux tests verify extraction/layout and properties;
+executing the macOS binary and AGP's selection remain CI checks.
+
+Hash provenance: [Kitware 3.22.1 release assets](https://github.com/Kitware/CMake/releases/expanded_assets/v3.22.1),
+[official SHA-256 manifest](https://github.com/Kitware/CMake/releases/download/v3.22.1/cmake-3.22.1-SHA-256.txt)
+and its [published signature](https://github.com/Kitware/CMake/releases/download/v3.22.1/cmake-3.22.1-SHA-256.txt.asc).
+The independent manifest entry is
+`9ba46ce69d524f5bcdf98076a6b01f727604fb31cf9005ec03dea1cf16da9514`.
+Signature verification is not claimed. Selection follows Android's documented
+[standalone CMake setup](https://developer.android.com/studio/projects/install-ndk#vanilla_cmake):
+PATH includes its bin directory and ignored `android/local.properties` points
+`cmake.dir` at `CMake.app/Contents`. Existing SDK/Flutter properties are preserved.
+Local Linux checks verify the real archive hash, safe extraction, universal binary
+layout, YAML and Bash; macOS execution, Ninja availability and AGP selection remain
+CI checks. See failed [run 43955599219](https://github.com/toye4ever/New-Man/actions/runs/43955599219).
