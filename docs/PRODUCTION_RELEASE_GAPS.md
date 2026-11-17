@@ -1,11 +1,16 @@
 # Production release gaps — November 17, 2026 checkpoint
 
-This matrix records repository evidence and owner decisions still needed. It is
-not a reduced definition of the approved full MVP. The recovered November 2 audit
-requires Android feature-level Guard, consent-based accountability, six English/
-Spanish editions and qualified offline audio. The precise October 9 contract and
-edition identifiers remain unrecovered; do not infer them from
-current beta code.
+This matrix distinguishes the authorized KJV-focused public beta from the
+confirmed October 9 1.0 scope. Accountability in that scope is local-only:
+morning commitments, evening outcome (met / partly met / not met), optional
+notes and dated history, with eventual Today wrap-up integration. Partners,
+accounts, network/sync, Mayday and sharing are not prerequisites for this slice.
+
+The Android contract requires complete offline editions of KJV, WEB, BSB,
+ASV 1901, Darby and Reina-Valera 1909. iOS/Windows additionally include Louis
+Segond 1910. Confirming the roster does not establish content availability or
+full bundling rights. No new text, provider, UI mode or distribution authorization
+is introduced by this document; current beta behavior remains unchanged.
 
 ## Small KJV beta evidence and remaining acceptance
 
@@ -30,9 +35,9 @@ acceptance or a claim that the broader production MVP is complete.
 
 | Milestone | Current source evidence | Remaining gate / owner decision |
 | --- | --- | --- |
-| Production Android Guard | [Default evaluator](../lib/src/features/focus/domain/guard_readiness.dart) has empty qualification records and available implementation IDs; [service](../lib/src/features/focus/application/guard_readiness_service.dart) uses that default. [Native policy](../android/app/src/main/java/com/newman/newmanapp/GuardFeaturePolicy.java) requires live opt-in and qualification. | Recover exact feature targets/acceptance contract; qualify each supported app/version and failure/revocation behavior on authorized hardware. Existing policy and probes do not establish production enforcement. No Accessibility activation is authorized by this review. |
-| Consent-based accountability | [Screen](../lib/src/features/accountability/presentation/accountability_screen.dart) now provides only an optional in-memory, manually entered private draft and review. It has no partner, send, history or persistence integration; see [draft acceptance](LOCAL_CHECK_IN_DRAFT.md). | Confirm partner invitation, field-level sharing, consent/revocation, retention and recovery contract before backend selection or transmission. No real sharing or live backend qualification exists in this slice; no private data should be sent. |
-| Six English/Spanish editions | [Catalog](../lib/src/features/word/translations/domain/bible_translation.dart) defines KJV and NLT, both English. KJV is offline-downloadable; NLT is online-only. [Schema](../lib/src/core/database/app_database.dart) constrains translation/access states to those modes. | Recover all six exact identifiers and approved access modes; owner supplies rights/provider authorization and required attribution. Catalog entries do not prove licensed distribution. Additional editions need source integrity, migration and offline/online acceptance tests. Do not acquire rights or configure a provider as an inferred implementation task. |
+| Production Android Guard | [Default evaluator](../lib/src/features/focus/domain/guard_readiness.dart) has empty qualification records and available implementation IDs; [service](../lib/src/features/focus/application/guard_readiness_service.dart) uses that default. [Native policy](../android/app/src/main/java/com/newman/newmanapp/GuardFeaturePolicy.java) requires live opt-in and qualification. | Apply the confirmed feature-level acceptance contract and qualify each supported app/version and failure/revocation behavior on authorized hardware. Existing policy and probes do not establish production enforcement. No Accessibility activation is authorized by this review. |
+| Local-only accountability | [Shipped screen](../lib/src/features/accountability/presentation/accountability_screen.dart) remains a discarded in-memory private draft. The separate [domain](../lib/src/features/accountability/domain/local_check_in.dart) and [explicit store](../lib/src/features/accountability/data/explicit_local_check_in_store.dart) are unexposed, opt-in foundations with typed outcomes and synthetic reopen/rollback tests; see [boundaries](LOCAL_CHECK_IN_DRAFT.md). | Implement and qualify explicit local persistence consent, morning/evening/history UI and Today wrap-up integration after retention/deletion and private storage/backup behavior are resolved. Missing check-ins must remain unrecorded. No partner, backend or transmission is needed for the confirmed local-only scope; the existing discard promise must remain true until a separately reviewed UI change. |
+| Complete offline edition roster | [Current catalog](../lib/src/features/word/translations/domain/bible_translation.dart) still defines KJV and online-only NLT; [schema](../lib/src/core/database/app_database.dart) remains limited to those identifiers/modes. No additional edition is installed or bundled by the unexposed work. | Android: KJV, WEB, BSB, ASV 1901, Darby, Reina-Valera 1909; iOS/Windows add Louis Segond 1910. Full bundling rights, source integrity and required attribution remain pending review. A future full-catalog packet must preserve stored `kjv`/`nlt`, retain KJV/recovery paths, and treat NLT as unavailable legacy references rather than deleting or coercing them; current NLT behavior is unchanged. Synthetic metadata/migration tests cannot qualify complete offline datasets or platform runtime behavior. |
 | Qualified offline audio | [Audio boundary](../lib/src/features/word/audio/application/bible_audio_service.dart) preserves known/unknown TTS network requirements; [TTS service](../lib/src/services/tts_service.dart) uses platform engines/voice metadata, including Android numeric flags. The reader labels network use without claiming verified offline playback. Narration reliability tests establish control behavior, not offline voice installation or quality. | Confirm whether contract accepts device TTS versus recorded audio, languages/voices and offline guarantees. Qualify synthetic text in airplane mode on supported devices, missing/network-only voice behavior, interruptions, resume and privacy. No recorded-audio rights or downloads are established here. |
 
 A successful debug APK build/manifest inspection remains distinct from a fresh
