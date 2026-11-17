@@ -320,6 +320,90 @@ void main() {
     },
   );
 
+  for (final action in ['cancel', 'save', 'reselect']) {
+    testWidgets('clearing saved due date clears draft reminder: $action', (
+      tester,
+    ) async {
+      final created = await service.createTask(
+        title: 'Synthetic dated task',
+        dueDate: DateTime(2026, 11, 17),
+        reminderMinutesLocal: 540,
+        timeBlock: TaskTimeBlock(
+          plannedDate: DateTime(2026, 11, 17),
+          startMinutesLocal: 600,
+          endMinutesLocal: 630,
+        ),
+        subtasks: [service.newSubtask(title: 'Synthetic step')],
+      );
+      await service.dismissTaskReminder(created);
+      final source = (await repo.loadTask(created.id))!;
+      expect(source.reminderDismissedKey, isNotNull);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showTaskEditor(
+                  context,
+                  service,
+                  task: source,
+                  initialDate: DateTime(2026, 11, 17),
+                ),
+                child: const Text('Edit'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Clear due date'));
+      await tester.tap(find.text('Clear due date'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
+        isFalse,
+      );
+      expect(
+        find.widgetWithText(TextField, 'Reminder time (HH:mm)'),
+        findsNothing,
+      );
+      if (action == 'reselect') {
+        await tester.ensureVisible(find.text('Add due date (optional)'));
+        await tester.tap(find.text('Add due date (optional)'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('OK'));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
+          isFalse,
+        );
+      }
+      final button = find.text(action == 'cancel' ? 'Cancel' : 'Save task');
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(find.byType(TaskEditorDialog), findsNothing);
+      final stored = (await repo.loadTask(source.id))!;
+      if (action == 'cancel') {
+        expect(stored.dueDate, source.dueDate);
+        expect(stored.reminderMinutesLocal, source.reminderMinutesLocal);
+        expect(stored.reminderDismissedKey, source.reminderDismissedKey);
+        expect(stored.updatedAt, source.updatedAt);
+      } else {
+        expect(stored.dueDate, action == 'reselect' ? source.dueDate : null);
+        expect(stored.reminderMinutesLocal, isNull);
+        expect(stored.reminderDismissedKey, isNull);
+      }
+      expect(stored.timeBlock?.plannedDate, source.timeBlock?.plannedDate);
+      expect(stored.timeBlock?.startMinutesLocal, 600);
+      expect(stored.timeBlock?.endMinutesLocal, 630);
+      expect(stored.subtasks.single.id, source.subtasks.single.id);
+      expect(stored.recurrence, source.recurrence);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('editor requires a due date and saves explicit local time', (
     tester,
   ) async {

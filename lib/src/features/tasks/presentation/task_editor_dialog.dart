@@ -321,7 +321,13 @@ class _TaskEditorDialogState extends State<TaskEditorDialog> {
             ),
             if (due != null)
               TextButton(
-                onPressed: saving ? null : () => setState(() => due = null),
+                onPressed: saving
+                    ? null
+                    : () => setState(() {
+                        due = null;
+                        reminderEnabled = false;
+                        reminderTime.clear();
+                      }),
                 child: const Text('Clear due date'),
               ),
             TextButton.icon(
