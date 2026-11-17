@@ -1835,6 +1835,230 @@ void main() {
     );
   }
 
+  Future<_NoteFaultRepository> openNote(
+    WidgetTester tester, {
+    bool mobile = false,
+  }) async {
+    tester.view.physicalSize = Size(mobile ? 390 : 1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final saved = _NoteFaultRepository();
+    final controller = AppController(
+      repository: _MemoryPlanRepository([]),
+      versionRepository: _InstalledKjvRepository(),
+      savedScriptureRepository: saved,
+    );
+    addTearDown(controller.dispose);
+    await controller.load();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReaderScreen(
+          controller: controller,
+          request: BibleReaderRequest.manual(
+            references: const [
+              ScriptureReference(book: 'Matthew', startChapter: 5),
+            ],
+          ),
+          audio: _FakeAudioService(),
+          scriptureRepositoryFactory: (_) => _TextScriptureRepository(
+            '1 Synthetic one\n2 Synthetic two\n3 Synthetic three',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1 Synthetic one'));
+    await tester.tap(find.text('3 Synthetic three'));
+    await tester.pumpAndSettle();
+    await tester.tap(mobile ? find.byTooltip('Note') : find.text('Note'));
+    await tester.pumpAndSettle();
+    return saved;
+  }
+
+  Finder noteField() => find.descendant(
+    of: find.byType(AlertDialog),
+    matching: find.byType(TextField),
+  );
+  testWidgets(
+    'private note failed save retains sparse draft and retries one identity',
+    (tester) async {
+      final saved = await openNote(tester);
+      saved.fail = true;
+      await tester.enterText(noteField(), 'Synthetic private note draft');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(
+        tester.widget<TextField>(noteField()).controller!.text,
+        'Synthetic private note draft',
+      );
+      expect(
+        find.text('Could not save the note. Please try again.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('secret failure detail'), findsNothing);
+      expect(await saved.loadNotes(), isEmpty);
+      expect(saved.attempts.single.anchors.map((a) => a.display), [
+        'Matthew 5:1',
+        'Matthew 5:3',
+      ]);
+      saved.fail = false;
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      final note = (await saved.loadNotes()).single;
+      expect(note.body, 'Synthetic private note draft');
+      expect(note.anchors.map((a) => a.display), [
+        'Matthew 5:1',
+        'Matthew 5:3',
+      ]);
+      expect(saved.attempts.map((n) => n.id).toSet(), hasLength(1));
+      expect(saved.attempts.map((n) => n.createdAt).toSet(), hasLength(1));
+      expect(find.byTooltip('Clear selection'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'private note retry after lost acknowledgement upserts the same draft',
+    (tester) async {
+      final saved = await openNote(tester);
+      saved.loseAcknowledgement = true;
+      await tester.enterText(noteField(), 'Synthetic acknowledged-late note');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(await saved.loadNotes(), hasLength(1));
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(await saved.loadNotes(), hasLength(1));
+      expect(saved.attempts, hasLength(2));
+      expect(saved.attempts.map((n) => n.id).toSet(), hasLength(1));
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'pending private note blocks duplicates cancel back and barrier until success',
+    (tester) async {
+      final saved = await openNote(tester, mobile: true);
+      saved.gate = Completer<void>();
+      await tester.enterText(noteField(), 'Synthetic pending note');
+      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('Save'));
+      await tester.pump();
+      expect(saved.attempts, hasLength(1));
+      expect(
+        tester
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Cancel'))
+            .onPressed,
+        isNull,
+      );
+      expect(tester.widget<TextField>(noteField()).enabled, isFalse);
+      await tester.binding.handlePopRoute();
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      saved.gate!.complete();
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(await saved.loadNotes(), hasLength(1));
+      expect(saved.attempts, hasLength(1));
+      expect(tester.takeException(), isNull);
+    },
+  );
+  for (final back in [false, true]) {
+    testWidgets('idle private note cancellation discards draft back=$back', (
+      tester,
+    ) async {
+      final saved = await openNote(tester);
+      await tester.enterText(noteField(), 'Synthetic cancelled draft');
+      if (back) {
+        await tester.binding.handlePopRoute();
+      } else {
+        await tester.tap(find.text('Cancel'));
+      }
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(saved.attempts, isEmpty);
+      expect(await saved.loadNotes(), isEmpty);
+      await tester.tap(find.text('Note'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(noteField()).controller!.text, isEmpty);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
+  }
+  for (final fails in [false, true]) {
+    testWidgets('private note late save after disposal is safe fails=$fails', (
+      tester,
+    ) async {
+      final saved = await openNote(tester);
+      saved.gate = Completer<void>();
+      saved.fail = fails;
+      await tester.enterText(noteField(), 'Synthetic late draft');
+      await tester.tap(find.text('Save'));
+      await tester.pump();
+      await tester.pumpWidget(
+        MaterialApp(
+          key: UniqueKey(),
+          home: const Scaffold(body: Text('Other page')),
+        ),
+      );
+      await tester.pumpAndSettle();
+      saved.gate!.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('Other page'), findsOneWidget);
+      expect(find.byType(SnackBar), findsNothing);
+      expect(find.textContaining('Could not save'), findsNothing);
+      expect(await saved.loadNotes(), hasLength(fails ? 0 : 1));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final fails in [false, true]) {
+    testWidgets(
+      'private note late save cannot pop a newer route fails=$fails',
+      (tester) async {
+        final saved = await openNote(tester);
+        saved.gate = Completer<void>();
+        saved.fail = fails;
+        await tester.enterText(noteField(), 'Synthetic navigation draft');
+        await tester.tap(find.text('Save'));
+        await tester.pump();
+        final navigator = Navigator.of(
+          tester.element(find.byType(AlertDialog)),
+        );
+        navigator.push(
+          MaterialPageRoute<void>(
+            builder: (_) => const Scaffold(body: Text('Newer route')),
+          ),
+        );
+        await tester.pumpAndSettle();
+        saved.gate!.complete();
+        await tester.pumpAndSettle();
+        expect(find.text('Newer route'), findsOneWidget);
+        expect(find.textContaining('Could not save'), findsNothing);
+        navigator.pop();
+        await tester.pumpAndSettle();
+        if (fails) {
+          expect(find.byType(AlertDialog), findsOneWidget);
+          expect(
+            tester.widget<TextField>(noteField()).controller!.text,
+            'Synthetic navigation draft',
+          );
+          await tester.tap(find.text('Cancel'));
+          await tester.pumpAndSettle();
+        } else {
+          expect(find.byType(AlertDialog), findsNothing);
+        }
+        expect(await saved.loadNotes(), hasLength(fails ? 0 : 1));
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('Listen from here starts at the earliest sparse selected verse', (
     tester,
   ) async {
@@ -2296,5 +2520,23 @@ class _PendingHistoryRepository extends VolatileSavedScriptureRepository {
   Future<void> recordSuccessfulOpen(ScriptureAnchor anchor) async {
     recorded.add(anchor);
     await super.recordSuccessfulOpen(anchor);
+  }
+}
+
+class _NoteFaultRepository extends VolatileSavedScriptureRepository {
+  bool fail = false;
+  bool loseAcknowledgement = false;
+  Completer<void>? gate;
+  final attempts = <ScriptureNote>[];
+  @override
+  Future<void> saveNote(ScriptureNote note) async {
+    attempts.add(note);
+    await gate?.future;
+    if (fail) throw StateError('synthetic secret failure detail');
+    await super.saveNote(note);
+    if (loseAcknowledgement) {
+      loseAcknowledgement = false;
+      throw StateError('synthetic lost save acknowledgement');
+    }
   }
 }

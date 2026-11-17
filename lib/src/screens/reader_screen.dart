@@ -14,6 +14,7 @@ import '../features/word/bible/domain/reference_parser.dart';
 import '../features/word/bible/domain/scripture_anchor.dart';
 import '../features/word/bible/domain/scripture_reference.dart';
 import '../features/word/saved_scripture/domain/saved_scripture.dart';
+import '../features/word/saved_scripture/presentation/private_note_dialog.dart';
 import '../features/word/translations/domain/translation_state.dart';
 import '../models/reading_plan.dart';
 import '../services/bible_version_repository.dart';
@@ -1173,40 +1174,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
   Future<void> _editNote() async {
     if (!_noteSupported) return;
-    final text = TextEditingController();
     final anchors = _runs.map((run) => run.anchor(_current)).toList();
-    final save = await showDialog<bool>(
+    await showDialog<bool>(
       context: context,
-      builder: (c) => AlertDialog(
-        title: Text(
-          'Private note — ${anchors.map((a) => a.display).join(', ')}',
-        ),
-        content: TextField(controller: text, minLines: 3, maxLines: 8),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(c, true),
-            child: const Text('Save'),
-          ),
-        ],
+      barrierDismissible: false,
+      builder: (_) => PrivateNoteDialog(
+        repository: widget.controller.savedScriptureRepository,
+        anchors: anchors,
       ),
     );
-    if (save == true && text.text.trim().isNotEmpty) {
-      final now = DateTime.now().toUtc();
-      await widget.controller.savedScriptureRepository.saveNote(
-        ScriptureNote(
-          id: 'note-${now.microsecondsSinceEpoch}',
-          anchors: anchors,
-          body: text.text.trim(),
-          createdAt: now,
-          updatedAt: now,
-        ),
-      );
-    }
-    text.dispose();
   }
 
   Future<void> _goTo() async {
