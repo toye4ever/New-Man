@@ -5,7 +5,7 @@
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- The unfinished Guard qualification service is debug-only. -->
-    <application android:label="New Man Dev" tools:replace="android:label">
+    <application android:label="${newManDebugLabel}" tools:replace="android:label">
         <service android:name=".GuardAccessibilityService" android:description="@string/guard_accessibility_description" android:exported="false" android:label="@string/guard_accessibility_label" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />

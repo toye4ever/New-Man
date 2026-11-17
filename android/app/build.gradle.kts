@@ -6,6 +6,8 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val galaxyTest = providers.gradleProperty("newManGalaxyTest").orNull == "true"
+
 android {
     namespace = "com.newman.newmanapp"
     compileSdk = flutter.compileSdkVersion
@@ -30,7 +32,11 @@ android {
     buildTypes {
         debug {
             // Keep developer installs and their local data separate from the signed beta.
-            applicationIdSuffix = ".dev"
+            applicationIdSuffix = if (galaxyTest) ".dev.nov17" else ".dev"
+            manifestPlaceholders["newManDebugLabel"] = if (galaxyTest) "New Man Test" else "New Man Dev"
+            if (galaxyTest) {
+                manifestPlaceholders["applicationName"] = "com.newman.newmanapp.GalaxyTestApplication"
+            }
         }
         release {
             signingConfig = null

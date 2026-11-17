@@ -40,3 +40,36 @@ The parent will publish only after current checks settle. Local preparation did
 not upload anything. Runtime build/check/upload success, artifact link and expiry
 must be observed from the eventual exact-head workflow run; this document does
 not claim they have occurred.
+
+## Separate temporary Galaxy test download — November 17, 2026
+
+A separate one-day approval covers **New Man Test for Galaxy**, not a replacement
+of either beta installation. Its fixed opt-in Gradle property
+`newManGalaxyTest=true` selects Debug ID `com.newman.newmanapp.beta.dev.nov17`,
+label `New Man Test`, and a debug-only Application that checks its actual runtime
+package, debuggable flag and label before app startup. Ordinary Debug remains
+`.beta.dev` / `New Man Dev`; Release remains `.beta` / `New Man Beta`, unsigned.
+No production entry point, storage migration, permissions or provider is added.
+The suffix has its own Android app-private storage; no old app data is read or
+copied. Actual install/startup/storage isolation still requires device evidence.
+
+Three new steps in the existing workflow require exact repository/ref, successful
+preceding gates, push, literal prior SHA
+`d2b3d4b3d2f70c4d1399484ce4184594fd9e2a02` and first run attempt only. They build
+only temporary Debug ARM64, check its exact package/label/runtime guard plus all
+existing backup, manifest, ABI and static alignment restrictions, then upload
+only `build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk` with retention one
+day and the same pinned official action. The original upload gate is unchanged
+and cannot match this prior SHA. Release checks run before the temporary build;
+no Release APK or other file is uploaded. Failed or rerun attempts need a new
+explicit approval; do not broaden the guard. No dispatch, reuse or PR trigger.
+GitHub retention is one day, not a promise of deletion at an exact wall-clock
+second; signed-in users can download during availability.
+
+TTS discovery, SQLite/preferences and KJV storage use runtime context/provider
+paths and require no external package registration. Their actual temporary-package
+behavior is unqualified until native CI and isolated device checks run. The native
+reminder qualification session intentionally accepts only `.beta.dev`, so remains
+unavailable here; do not expand that allowlist. Guard remains debug-contained and
+unqualified, with no activation needed for audio. No backend defines, voice install,
+extra translation asset, signing credential or device operation is introduced.

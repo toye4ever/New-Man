@@ -20,16 +20,45 @@ GUARD = (
 )
 
 
+ANDROID = "{http://schemas.android.com/apk/res/android}"
+
+
 class ManifestTests(unittest.TestCase):
     def test_debug_source_override_is_label_only(self):
         root = Path(__file__).resolve().parents[1]
         debug = ElementTree.parse(root / "android/app/src/debug/AndroidManifest.xml").getroot().find("application")
         main = ElementTree.parse(root / "android/app/src/main/AndroidManifest.xml").getroot().find("application")
         self.assertEqual(debug.attrib, {
-            "{http://schemas.android.com/apk/res/android}label": "New Man Dev",
+            "{http://schemas.android.com/apk/res/android}label": "${newManDebugLabel}",
             "{http://schemas.android.com/tools}replace": "android:label",
         })
         self.assertEqual(main.get("{http://schemas.android.com/apk/res/android}label"), "New Man Beta")
+
+    def test_temporary_test_identity_is_exact_and_keeps_guards(self):
+        node = manifest(package="com.newman.newmanapp.beta.dev.nov17", label="New Man Test",
+                        app_attrs='android:debuggable="true" android:name="com.newman.newmanapp.GalaxyTestApplication"', inside=GUARD)
+        self.assertFalse(verify_manifest(node, "galaxy-test"))
+        self.assertTrue(verify_manifest(node, "debug"))
+        self.assertTrue(verify_manifest(node, "release"))
+        for key, wrong in [("label", "New Man Dev"), ("allowBackup", "true"),
+                           ("debuggable", "false"), ("name", "android.app.Application")]:
+            app = node.find("application")
+            old = app.get(ANDROID + key)
+            app.set(ANDROID + key, wrong)
+            self.assertTrue(verify_manifest(node, "galaxy-test"))
+            app.set(ANDROID + key, old)
+        for package in ("com.newman.newmanapp.beta", "com.newman.newmanapp.beta.dev"):
+            node.set("package", package)
+            self.assertTrue(verify_manifest(node, "galaxy-test"))
+
+    def test_temporary_runtime_guard_cannot_leak_to_default_variants(self):
+        for variant, package, label, debug, services in [
+            ("debug", "com.newman.newmanapp.beta.dev", "New Man Dev", "true", GUARD),
+            ("release", "com.newman.newmanapp.beta", "New Man Beta", "false", ""),
+        ]:
+            node = manifest(package=package, label=label, inside=services,
+                            app_attrs=f'android:debuggable="{debug}" android:name="com.newman.newmanapp.GalaxyTestApplication"')
+            self.assertTrue(verify_manifest(node, variant))
 
     def test_debug_requires_distinct_visible_label(self):
         node = manifest(package="com.newman.newmanapp.beta.dev", app_attrs='android:debuggable="true"', inside=GUARD)

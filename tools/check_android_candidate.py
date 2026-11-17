@@ -127,7 +127,7 @@ def verify_zipalign(apk: Path, executable: str) -> list[str]:
 def verify_manifest(root: ElementTree.Element, variant: str) -> list[str]:
     if root.tag != "manifest":
         return ["Input is not an Android manifest."]
-    expected_id = f"{BETA_ID}.dev" if variant == "debug" else BETA_ID
+    expected_id = f"{BETA_ID}.dev.nov17" if variant == "galaxy-test" else f"{BETA_ID}.dev" if variant == "debug" else BETA_ID
     failures = []
     if root.get("package") != expected_id:
         failures.append(f"Expected app ID {expected_id}; found {root.get('package')!r}.")
@@ -148,9 +148,13 @@ def verify_manifest(root: ElementTree.Element, variant: str) -> list[str]:
         } or any(action.get(ANDROID + "name") == "com.newman.newmanapp.TASK_REMINDER_V1"
                  for action in receiver.findall("./intent-filter/action")):
             failures.append("Dormant task reminder receiver must not be registered.")
-    expected_label = "New Man Dev" if variant == "debug" else "New Man Beta"
+    expected_label = "New Man Test" if variant == "galaxy-test" else "New Man Dev" if variant == "debug" else "New Man Beta"
     if app.get(ANDROID + "label") != expected_label:
         failures.append(f"Expected application label {expected_label!r}.")
+    if variant == "galaxy-test" and app.get(ANDROID + "name") != "com.newman.newmanapp.GalaxyTestApplication":
+        failures.append("Temporary test must use its runtime identity guard.")
+    if variant != "galaxy-test" and app.get(ANDROID + "name") == "com.newman.newmanapp.GalaxyTestApplication":
+        failures.append("Temporary runtime identity guard leaked into an ordinary variant.")
     for component in list(app.findall("activity")) + list(app.findall("activity-alias")):
         launcher = any(
             any(action.get(ANDROID + "name") == "android.intent.action.MAIN" for action in entry.findall("action"))
@@ -162,7 +166,7 @@ def verify_manifest(root: ElementTree.Element, variant: str) -> list[str]:
     if app.get(ANDROID + "allowBackup") != "false":
         failures.append("Application must explicitly disable Android backup.")
     is_debuggable = app.get(ANDROID + "debuggable", "false")
-    if is_debuggable != ("true" if variant == "debug" else "false"):
+    if is_debuggable != ("true" if variant in ("debug", "galaxy-test") else "false"):
         failures.append(f"Unexpected android:debuggable={is_debuggable!r}.")
 
     if variant == "release":
@@ -185,7 +189,7 @@ def verify_manifest(root: ElementTree.Element, variant: str) -> list[str]:
     services = [node for node in app.findall("service") if accessibility_service(node)]
     if variant == "release" and services:
         failures.append("Release candidate declares an unqualified accessibility service.")
-    if variant == "debug":
+    if variant in ("debug", "galaxy-test"):
         if len(services) != 1:
             failures.append("Expected one debug-only Guard qualification service.")
         elif services[0].get(ANDROID + "name") != GUARD_SERVICE:
@@ -200,7 +204,7 @@ def verify_manifest(root: ElementTree.Element, variant: str) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("variant", choices=("debug", "release"))
+    parser.add_argument("variant", choices=("debug", "release", "galaxy-test"))
     parser.add_argument("apk", type=Path)
     parser.add_argument("--apkanalyzer", default="apkanalyzer")
     parser.add_argument("--zipalign", required=True, help="Trusted preinstalled SDK zipalign path; never installs tools")
