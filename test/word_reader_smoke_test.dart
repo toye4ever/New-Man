@@ -1,4 +1,8 @@
 import 'dart:async';
+import 'package:scripture_planner/src/features/word/saved_scripture/application/saved_scripture_repository.dart';
+import 'package:scripture_planner/src/features/word/saved_scripture/domain/saved_scripture.dart';
+import 'package:scripture_planner/src/features/word/bible/domain/scripture_anchor.dart';
+
 import 'package:scripture_planner/src/features/word/audio/presentation/playback_speed_selector.dart';
 import 'dart:io';
 
@@ -89,6 +93,129 @@ void main() {
         ),
       ],
     );
+  }
+
+  for (final planReader in [false, true]) {
+    for (final changeTranslation in [false, true]) {
+      testWidgets(
+        'obsolete load cannot write history plan=$planReader translation=$changeTranslation',
+        (tester) async {
+          tester.view.physicalSize = Size(changeTranslation ? 1280 : 390, 900);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final saved = _PendingHistoryRepository();
+          const seed = ScriptureAnchor(book: 'John', chapter: 3);
+          await saved.recordSuccessfulOpen(seed);
+          saved.recorded.clear();
+          final controller = AppController(
+            repository: _MemoryPlanRepository([chapterPlan()]),
+            versionRepository: _InstalledTranslationsRepository(),
+            savedScriptureRepository: saved,
+            nltOnlineConfigured: true,
+          );
+          addTearDown(controller.dispose);
+          await controller.load();
+          var failNew = true;
+          final newLoad = Completer<ScriptureTextResult>();
+          var requests = 0;
+          await tester.pumpWidget(
+            MaterialApp(
+              home: ReaderScreen(
+                controller: controller,
+                request: planReader
+                    ? BibleReaderRequest.fromPlanReading(
+                        references: const [
+                          ScriptureReference(
+                            book: 'Genesis',
+                            startChapter: 1,
+                            endChapter: 3,
+                          ),
+                        ],
+                        initialTranslation: BibleTranslation.kjv,
+                        planId: 'chapter-plan',
+                        assignmentIndex: 0,
+                        initialChapterIndex: 1,
+                      )
+                    : BibleReaderRequest.manual(
+                        references: const [
+                          ScriptureReference(book: 'Genesis', startChapter: 2),
+                        ],
+                      ),
+                audio: _FakeAudioService(),
+                scriptureRepositoryFactory: (translation) =>
+                    _CallbackScriptureRepository((ref) async {
+                      requests++;
+                      if (failNew &&
+                          (changeTranslation
+                              ? translation == BibleTranslation.nlt
+                              : ref.startChapter == 1)) {
+                        return newLoad.future;
+                      }
+                      return ScriptureTextResult(
+                        reference: ref.display,
+                        text: '1 Synthetic text.',
+                      );
+                    }),
+              ),
+            ),
+          );
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 100));
+          expect(saved.highlightCalls, 1);
+          if (changeTranslation) {
+            tester
+                .widget<DropdownButton<BibleTranslation>>(
+                  find.byType(DropdownButton<BibleTranslation>),
+                )
+                .onChanged!(BibleTranslation.nlt);
+          } else {
+            await tester.tap(
+              find.byWidgetPredicate(
+                (w) => w is IconButton && w.tooltip == 'Previous chapter',
+              ),
+            );
+          }
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 100));
+          newLoad.completeError(
+            const ScriptureUnavailableException('Synthetic new load failure'),
+          );
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 100));
+          expect(find.text('Synthetic new load failure'), findsOneWidget);
+          expect(requests, 2);
+          saved.pending.complete(const []);
+          await tester.pumpAndSettle();
+          expect(saved.recorded, isEmpty);
+          expect((await saved.loadHistory()).map((h) => h.anchor), [seed]);
+          expect(controller.plans.single.completedChapterCount, 0);
+          if (planReader) {
+            expect(controller.plans.single.lastReadLocation?.startChapter, 2);
+          }
+          failNew = false;
+          await tester.tap(find.text('Retry'));
+          await tester.pumpAndSettle();
+          final expected = ScriptureAnchor(
+            book: 'Genesis',
+            chapter: changeTranslation ? 2 : 1,
+          );
+          expect(saved.recorded, [expected]);
+          expect(
+            (await saved.loadHistory()).map((h) => h.anchor),
+            containsAll([seed, expected]),
+          );
+          expect(controller.plans.single.completedChapterCount, 0);
+          if (planReader) {
+            expect(
+              controller.plans.single.lastReadLocation?.startChapter,
+              expected.chapter,
+            );
+          }
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
   }
 
   for (final mobile in [false, true]) {
@@ -2036,4 +2163,18 @@ class _CallbackScriptureRepository implements ScriptureRepository {
   @override
   Future<ScriptureTextResult> getPassage(ScriptureReference reference) =>
       load(reference);
+}
+
+class _PendingHistoryRepository extends VolatileSavedScriptureRepository {
+  final pending = Completer<List<ScriptureHighlight>>();
+  int highlightCalls = 0;
+  final recorded = <ScriptureAnchor>[];
+  @override
+  Future<List<ScriptureHighlight>> loadHighlights() =>
+      ++highlightCalls == 1 ? pending.future : super.loadHighlights();
+  @override
+  Future<void> recordSuccessfulOpen(ScriptureAnchor anchor) async {
+    recorded.add(anchor);
+    await super.recordSuccessfulOpen(anchor);
+  }
 }

@@ -201,18 +201,24 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Future<List<ScriptureTextResult>> _loadCurrent() async {
     final generation = ++_loadGeneration;
     _readyGeneration = null;
+    final requestedTranslation = _translation;
     final availability = widget.controller.translationAvailability(
-      _translation,
+      requestedTranslation,
     );
     if (!availability.isUsable) {
       throw ScriptureUnavailableException(_unavailableMessage(availability));
     }
     final service =
-        widget.scriptureRepositoryFactory?.call(_translation) ??
-        scriptureServiceFor(_translation);
+        widget.scriptureRepositoryFactory?.call(requestedTranslation) ??
+        scriptureServiceFor(requestedTranslation);
     final requested = _current;
+    bool isCurrentLoad() =>
+        mounted &&
+        generation == _loadGeneration &&
+        requested == _current &&
+        requestedTranslation == _translation;
     final result = await service.getPassage(requested);
-    if (!mounted || generation != _loadGeneration || requested != _current) {
+    if (!isCurrentLoad()) {
       return [result];
     }
     final planTarget = widget.request.planProgress;
@@ -223,12 +229,14 @@ class _ReaderScreenState extends State<ReaderScreen> {
         requested,
       );
     }
+    if (!isCurrentLoad()) return [result];
     final all = await widget.controller.savedScriptureRepository
         .loadHighlights();
+    if (!isCurrentLoad()) return [result];
     await widget.controller.savedScriptureRepository.recordSuccessfulOpen(
-      _anchorFor(_current),
+      _anchorFor(requested),
     );
-    if (mounted && generation == _loadGeneration && requested == _current) {
+    if (isCurrentLoad()) {
       _readyGeneration = generation;
       setState(
         () => _highlights = all
