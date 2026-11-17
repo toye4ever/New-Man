@@ -205,6 +205,16 @@ class _GuardQualificationScreenState extends State<GuardQualificationScreen>
     final snapshot = _controller.snapshot;
     final supported = snapshot?.isSupported == true;
     final supportUnknown = snapshot == null && _controller.mayBeActive;
+    final recoveryStatus = switch (snapshot?.status) {
+      GuardQualificationStatus.running || GuardQualificationStatus.paused =>
+        'The last confirmed test status is running or paused. Use End test '
+            'to end it, or Refresh test status to check again.',
+      GuardQualificationStatus.idle || GuardQualificationStatus.completed ||
+      GuardQualificationStatus.ended || GuardQualificationStatus.interrupted =>
+        'Android reported no active test.',
+      _ => 'Test status is unknown. A test may still be active. '
+          'Refresh test status to check again.',
+    };
     return PopScope<void>(
       canPop: !_mustConfirmExit,
       onPopInvokedWithResult: (didPop, _) => _handleBack(didPop),
@@ -392,8 +402,7 @@ class _GuardQualificationScreenState extends State<GuardQualificationScreen>
                       if (supported || supportUnknown)
                         Text(
                           _controller.hasAccessibilityRecoveryRoute
-                              ? 'The test is inactive unless the status above '
-                                    'says running or paused. Android access may '
+                              ? '$recoveryStatus Android access may '
                                     'still be enabled, so you can review or '
                                     'revoke it in Accessibility settings. '
                                     'Opening Settings never starts a test.'

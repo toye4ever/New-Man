@@ -681,6 +681,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('status is not confirmed'), findsOneWidget);
+    expect(find.textContaining('The test is inactive'), findsNothing);
     expect(find.byKey(const Key('end-guard-test-button')), findsOneWidget);
     expect(
       tester
@@ -699,6 +700,33 @@ void main() {
     expect(find.textContaining('status is not confirmed'), findsOneWidget);
     expect(service.endCalls, 0);
   });
+
+  for (final confirmed in [_idle(), _running(), _paused(), _ended(), _terminalInterrupted('service_interrupted')]) {
+    testWidgets('recovery footer waits for native confirmation then reports ${confirmed.status.name}', (tester) async {
+      final service = _PendingStatusService();
+      final controller = GuardQualificationController(
+        readinessService: _Availability(), service: service, pollingInterval: null,
+      );
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(_app(controller));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Test status is unknown.'), findsOneWidget);
+      expect(find.textContaining('Android reported no active test.'), findsNothing);
+      expect(find.textContaining('The test is inactive'), findsNothing);
+      expect(find.byKey(const Key('end-guard-test-button')), findsOneWidget);
+      service.status.complete(confirmed);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Test status is unknown.'), findsNothing);
+      expect(find.textContaining('The test is inactive'), findsNothing);
+      expect(find.textContaining('Android reported no active test.'), confirmed.isActive ? findsNothing : findsOneWidget);
+      expect(find.textContaining('last confirmed test status is running or paused'), confirmed.isActive ? findsOneWidget : findsNothing);
+      expect(find.byKey(const Key('end-guard-test-button')), confirmed.isActive ? findsOneWidget : findsNothing);
+      expect(find.byKey(const Key('refresh-guard-status-button')), findsOneWidget);
+      expect(find.byKey(const Key('open-accessibility-settings-button')), findsOneWidget);
+      expect(service.endCalls, 0);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets(
     'unsupported platforms show no Android test or settings controls',
