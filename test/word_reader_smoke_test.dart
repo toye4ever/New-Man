@@ -91,6 +91,151 @@ void main() {
     );
   }
 
+  for (final mobile in [false, true]) {
+    for (final pending in [false, true]) {
+      testWidgets(
+        'plan progress requires current content mobile=$mobile pending=$pending',
+        (tester) async {
+          tester.view.physicalSize = Size(mobile ? 390 : 1280, 900);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final plan = chapterPlan().copyWith(
+            assignments: [
+              ScheduledReading(
+                date: DateTime(2026, 10, 5),
+                references: const [
+                  ScriptureReference(
+                    book: 'Genesis',
+                    startChapter: 1,
+                    endChapter: 2,
+                  ),
+                ],
+              ),
+            ],
+          );
+          final repository = _MemoryPlanRepository([plan]);
+          final controller = AppController(
+            repository: repository,
+            versionRepository: _InstalledKjvRepository(),
+          );
+          addTearDown(controller.dispose);
+          await controller.load();
+          final delayed = Completer<ScriptureTextResult>();
+          var failed = !pending;
+          final scripture = _CallbackScriptureRepository((ref) async {
+            if (ref.startChapter == 2) {
+              if (failed) {
+                throw const ScriptureUnavailableException(
+                  'Synthetic load failure',
+                );
+              }
+              if (pending) return delayed.future;
+            }
+            return ScriptureTextResult(
+              reference: ref.display,
+              text: '1 Synthetic chapter ${ref.startChapter}.',
+            );
+          });
+          await tester.pumpWidget(
+            MaterialApp(
+              home: ReaderScreen(
+                controller: controller,
+                request: BibleReaderRequest.fromPlanReading(
+                  references: plan.assignments.single.references,
+                  initialTranslation: BibleTranslation.kjv,
+                  planId: plan.id,
+                  assignmentIndex: 0,
+                  initialChapterIndex: pending ? 0 : 1,
+                ),
+                audio: _FakeAudioService(),
+                scriptureRepositoryFactory: (_) => scripture,
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          Finder finish() => mobile
+              ? find.byWidgetPredicate(
+                  (w) =>
+                      w is IconButton &&
+                      w.tooltip == 'Complete chapter and finish day',
+                )
+              : find.widgetWithText(FilledButton, 'Complete');
+          if (pending) {
+            final next = mobile
+                ? find.byWidgetPredicate(
+                    (w) =>
+                        w is IconButton &&
+                        w.tooltip == 'Complete chapter and continue',
+                  )
+                : find.widgetWithText(OutlinedButton, 'Genesis 2');
+            await tester.tap(next);
+            await tester.pump();
+            await tester.pump(const Duration(milliseconds: 100));
+            expect(controller.plans.single.completedChapterCount, 1);
+            expect(controller.plans.single.lastReadLocation?.startChapter, 1);
+          } else {
+            expect(find.text('Synthetic load failure'), findsOneWidget);
+          }
+          final saves = repository.saveCalls;
+          await tester.tap(finish());
+          await tester.pump();
+          expect(
+            controller.plans.single.completedChapterCount,
+            pending ? 1 : 0,
+          );
+          expect(repository.saveCalls, saves);
+          final button = tester.widget(finish());
+          expect(
+            button is IconButton
+                ? button.onPressed
+                : (button as FilledButton).onPressed,
+            isNull,
+          );
+          if (pending) {
+            final previous = mobile
+                ? find.byWidgetPredicate(
+                    (w) => w is IconButton && w.tooltip == 'Previous chapter',
+                  )
+                : find.widgetWithText(OutlinedButton, 'Genesis 1');
+            final previousButton = tester.widget(previous);
+            expect(
+              previousButton is IconButton
+                  ? previousButton.onPressed
+                  : (previousButton as OutlinedButton).onPressed,
+              isNotNull,
+            );
+            delayed.complete(
+              const ScriptureTextResult(
+                reference: 'Genesis 2',
+                text: '1 Synthetic second chapter.',
+              ),
+            );
+          } else {
+            failed = false;
+            await tester.tap(find.text('Retry'));
+          }
+          await tester.pumpAndSettle();
+          final ready = tester.widget(finish());
+          expect(
+            ready is IconButton
+                ? ready.onPressed
+                : (ready as FilledButton).onPressed,
+            isNotNull,
+          );
+          await tester.tap(finish());
+          await tester.pumpAndSettle();
+          expect(
+            controller.plans.single.completedChapterCount,
+            pending ? 2 : 1,
+          );
+          expect(controller.plans.single.lastReadLocation?.startChapter, 2);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
   testWidgets(
     'mobile scrolling keeps one dock; selection replaces it and long press opens options',
     (tester) async {
@@ -1883,4 +2028,12 @@ class _ControlledAudioService extends _FakeAudioService {
     if (failSpeech) throw StateError('Speech failed');
     spoken.add(text);
   }
+}
+
+class _CallbackScriptureRepository implements ScriptureRepository {
+  _CallbackScriptureRepository(this.load);
+  final Future<ScriptureTextResult> Function(ScriptureReference) load;
+  @override
+  Future<ScriptureTextResult> getPassage(ScriptureReference reference) =>
+      load(reference);
 }

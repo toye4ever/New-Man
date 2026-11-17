@@ -55,6 +55,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   late List<ScriptureReference> _queue;
   late Future<List<ScriptureTextResult>> _passagesFuture;
   int _queueIndex = 0;
+  int _loadGeneration = 0;
+  int? _readyGeneration;
   final SplayTreeSet<int> _selected = SplayTreeSet<int>();
   List<ScriptureHighlight> _highlights = const [];
   ScriptureReference? _goToTarget;
@@ -197,6 +199,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Future<List<ScriptureTextResult>> _loadCurrent() async {
+    final generation = ++_loadGeneration;
+    _readyGeneration = null;
     final availability = widget.controller.translationAvailability(
       _translation,
     );
@@ -208,7 +212,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
         scriptureServiceFor(_translation);
     final requested = _current;
     final result = await service.getPassage(requested);
-    if (!mounted || requested != _current) return [result];
+    if (!mounted || generation != _loadGeneration || requested != _current) {
+      return [result];
+    }
     final planTarget = widget.request.planProgress;
     if (_isPlanReader && planTarget != null) {
       await widget.controller.recordPlanReading(
@@ -222,7 +228,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
     await widget.controller.savedScriptureRepository.recordSuccessfulOpen(
       _anchorFor(_current),
     );
-    if (mounted) {
+    if (mounted && generation == _loadGeneration && requested == _current) {
+      _readyGeneration = generation;
       setState(
         () => _highlights = all
             .where(
@@ -302,7 +309,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
       body: FutureBuilder<List<ScriptureTextResult>>(
         future: _passagesFuture,
         builder: (context, snapshot) {
-          final passage = snapshot.data?.singleOrNull;
+          final passage =
+              snapshot.connectionState == ConnectionState.done &&
+                  !snapshot.hasError &&
+                  _readyGeneration == _loadGeneration
+              ? snapshot.data?.singleOrNull
+              : null;
           return Column(
             children: [
               if (!_mobile) ...[
@@ -320,7 +332,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
           : FutureBuilder<List<ScriptureTextResult>>(
               future: _passagesFuture,
               builder: (context, snapshot) {
-                final passage = snapshot.data?.singleOrNull;
+                final passage =
+                    snapshot.connectionState == ConnectionState.done &&
+                        !snapshot.hasError &&
+                        _readyGeneration == _loadGeneration
+                    ? snapshot.data?.singleOrNull
+                    : null;
                 return SafeArea(
                   top: false,
                   child: _hasSelection
@@ -538,7 +555,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Future<void> _advance(ScriptureReference? right) async {
-    if (_savingProgress) return;
+    if (_savingProgress ||
+        (_isPlanReader && _readyGeneration != _loadGeneration)) {
+      return;
+    }
     setState(() => _savingProgress = true);
     try {
       final target = widget.request.planProgress;
@@ -620,7 +640,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   : 170,
               child: _finalPlanChapter
                   ? FilledButton.icon(
-                      onPressed: _savingProgress ? null : _completePlan,
+                      onPressed: _savingProgress || passage == null
+                          ? null
+                          : _completePlan,
                       icon: const Icon(Icons.check),
                       label: Text(
                         _progressReading?.completed == true
@@ -629,7 +651,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       ),
                     )
                   : OutlinedButton.icon(
-                      onPressed: right == null || _savingProgress
+                      onPressed:
+                          right == null ||
+                              _savingProgress ||
+                              (_isPlanReader && passage == null)
                           ? null
                           : () => _advance(right),
                       iconAlignment: IconAlignment.end,
@@ -737,7 +762,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (snapshot.hasError) {
       return _ErrorState(
         message: snapshot.error.toString(),
-        onRetry: () => setState(() => _passagesFuture = _loadCurrent()),
+        onRetry: () => setState(() {
+          _passagesFuture = _loadCurrent();
+        }),
       );
     }
     final passage = snapshot.data!.single;
