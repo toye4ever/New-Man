@@ -73,9 +73,29 @@ class PlanScheduler {
       final size = baseSize + (index < remainder ? 1 : 0);
       final sessionReferences = units.sublist(cursor, cursor + size);
       cursor += size;
-      assignments.add(
-        ScheduledReading(date: dates[index], references: sessionReferences),
-      );
+      // Completion is keyed by chapter within a reading. A consciously
+      // repeated full chapter therefore needs a separate same-date reading.
+      var group = <ScriptureReference>[];
+      final fullChapters = <String>{};
+      for (final ref in sessionReferences) {
+        final fullChapter = ref.startVerse == null && ref.endVerse == null
+            ? ScheduledReading.chapterKey(ref)
+            : null;
+        if (fullChapter != null && fullChapters.contains(fullChapter)) {
+          assignments.add(
+            ScheduledReading(date: dates[index], references: group),
+          );
+          group = <ScriptureReference>[];
+          fullChapters.clear();
+        }
+        group.add(ref);
+        if (fullChapter != null) fullChapters.add(fullChapter);
+      }
+      if (group.isNotEmpty) {
+        assignments.add(
+          ScheduledReading(date: dates[index], references: group),
+        );
+      }
     }
 
     return assignments;

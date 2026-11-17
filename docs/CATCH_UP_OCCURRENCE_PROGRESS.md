@@ -25,3 +25,17 @@ both canonical UUID and legacy input IDs. The latter exposed a lookup mismatch:
 partial keys now use the projection's canonical plan ID during writes. No schema
 or automatic migration is changed. Ordinary scheduling and local DST date
 iteration retain their existing tests.
+
+
+New plan generation now applies the same representational constraint: when a
+full chapter repeats inside a proposed date's group, a new reading starts on
+that same date. It does not move the chosen end date or reorder source chapters.
+Ordinary unique full chapters stay grouped; intentional same-chapter verse
+fragments keep their existing grouping. Reader and completion storage therefore
+see each repeated full chapter in its own reading, without changing their UI or
+inferring old progress. The old ambiguous-legacy rejection remains in place.
+
+The creation acceptance test uses the actual Create Plan preview/apply and Plan
+Details UI with temporary SQLite. It then opens the actual Reader with synthetic
+content, completes only the first occurrence, reopens the database, and applies
+Catch Me Up before a second reopen. No real Scripture/provider/device is used.

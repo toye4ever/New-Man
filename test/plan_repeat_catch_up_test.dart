@@ -1,4 +1,13 @@
 import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:scripture_planner/src/models/plan_template.dart';
+import 'package:scripture_planner/src/screens/create_plan_screen.dart';
+import 'package:scripture_planner/src/screens/plan_details_screen.dart';
+import 'package:scripture_planner/src/screens/reader_screen.dart';
+import 'package:scripture_planner/src/features/word/bible/application/bible_reader_request.dart';
+import 'package:scripture_planner/src/services/scripture_service.dart';
+import 'package:scripture_planner/src/services/plan_scheduler.dart';
+import 'package:scripture_planner/src/features/word/audio/application/bible_audio_service.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:scripture_planner/src/controllers/app_controller.dart';
@@ -42,7 +51,14 @@ List<bool> firstChapterProgress(Iterable<ScheduledReading> days) => [
 class _Versions extends BibleVersionRepository {
   @override
   Future<TranslationRepositoryState> loadTranslationState() async =>
-      const TranslationRepositoryState(installations: {}, onlineEnabled: {});
+      const TranslationRepositoryState(
+        installations: {
+          BibleTranslation.kjv: TranslationInstallationState(
+            status: TranslationInstallationStatus.installed,
+          ),
+        },
+        onlineEnabled: {},
+      );
 }
 
 void main() {
@@ -78,6 +94,162 @@ void main() {
     await close();
     await directory.delete(recursive: true);
   });
+  testWidgets(
+    'actual one-date creation displays and persists independently readable repeats',
+    (tester) async {
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      Future<void> waitFor(bool Function() ready) async {
+        for (var i = 0; i < 200; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 5)),
+          );
+          await tester.pump(const Duration(milliseconds: 16));
+          if (ready() && !tester.binding.hasScheduledFrame) break;
+        }
+        expect(ready(), isTrue);
+        await tester.pumpAndSettle();
+      }
+
+      var saved = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CreatePlanScreen(
+              controller: controller,
+              planToEdit: null,
+              template: const PlanTemplate(
+                id: 'synthetic-short-repeat',
+                title: 'Synthetic new repeated plan',
+                description: 'Synthetic',
+                defaultDurationDays: 1,
+                references: [one, two, one],
+                iconName: 'book',
+              ),
+              onSaved: () => saved = true,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Preview schedule'));
+      await tester.tap(find.text('Preview schedule'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Apply schedule'));
+      await waitFor(() => saved);
+      final created = controller.plans.singleWhere(
+        (p) => p.title == 'Synthetic new repeated plan',
+      );
+      final id = created.id;
+      expect(created.startDate, created.endDate);
+      expect(created.totalChapterCount, 3);
+      expect(
+        [
+          for (final ref in created.sourceReferences)
+            for (var c = ref.startChapter; c <= ref.resolvedEndChapter; c++) c,
+        ],
+        [1, 2, 1],
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PlanDetailsScreen(controller: controller, planId: id),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('0/3 chapters'), findsOneWidget);
+      expect(created.assignments, hasLength(2));
+      expect(created.assignments.map((r) => r.date).toSet(), {
+        created.startDate,
+      });
+      expect(
+        created.assignments
+            .expand((r) => r.references)
+            .map((r) => r.startChapter),
+        [1, 2, 1],
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ReaderScreen(
+            controller: controller,
+            request: BibleReaderRequest.fromPlanReading(
+              references: created.assignments.first.references,
+              initialTranslation: BibleTranslation.kjv,
+              planId: id,
+              assignmentIndex: 0,
+            ),
+            audio: _SilentAudio(),
+            scriptureRepositoryFactory: (_) => _SyntheticScripture(),
+          ),
+        ),
+      );
+      await waitFor(
+        () => find.text('1 Synthetic chapter 1').evaluate().isNotEmpty,
+      );
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Genesis 2'));
+      await waitFor(
+        () => find.text('1 Synthetic chapter 2').evaluate().isNotEmpty,
+      );
+      final progressed = controller.plans.singleWhere((p) => p.id == id);
+      expect(firstChapterProgress(progressed.assignments), [true, false]);
+      expect(progressed.assignments.first.isChapterCompleted(two), isFalse);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+      await tester.runAsync(() async {
+        await close();
+        await open();
+      });
+      final reloaded = controller.plans.singleWhere((p) => p.id == id);
+      expect(firstChapterProgress(reloaded.assignments), [true, false]);
+      await tester.runAsync(() async {
+        final preview = controller.previewCatchUpPlan(
+          id,
+          fromDate: reloaded.startDate,
+        );
+        expect(firstChapterProgress(preview.assignments), [true, false]);
+        await controller.applyCatchUpPreview(preview);
+        await close();
+        await open();
+      });
+      expect(
+        firstChapterProgress(
+          controller.plans.singleWhere((p) => p.id == id).assignments,
+        ),
+        [true, false],
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+  test(
+    'one-date ordinary grouping and intentional chapter fragments remain grouped',
+    () {
+      final scheduler = PlanScheduler();
+      final normal = scheduler.generate(
+        references: [one, two],
+        startDate: firstDay,
+        endDate: firstDay,
+        readingWeekdays: {1, 2, 3, 4, 5, 6, 7},
+      );
+      expect(normal, hasLength(1));
+      final fragments = scheduler.generate(
+        references: const [
+          ScriptureReference(book: 'Matthew', startChapter: 5, startVerse: 1),
+          ScriptureReference(book: 'Matthew', startChapter: 5, startVerse: 3),
+        ],
+        startDate: firstDay,
+        endDate: firstDay,
+        readingWeekdays: {1, 2, 3, 4, 5, 6, 7},
+      );
+      expect(fragments, hasLength(1));
+      expect(fragments.single.references, hasLength(2));
+      expect(fragments.single.chapters, hasLength(1));
+    },
+  );
+
   for (final remainingDays in [2, 1]) {
     test(
       'Catch Me Up preserves repeated chapter occurrence through apply and SQLite reopen days=$remainingDays',
@@ -274,4 +446,39 @@ void main() {
       );
     },
   );
+}
+
+class _SyntheticScripture implements ScriptureRepository {
+  @override
+  Future<ScriptureTextResult> getPassage(ScriptureReference ref) async =>
+      ScriptureTextResult(
+        reference: ref.display,
+        text: '1 Synthetic chapter ${ref.startChapter}',
+      );
+}
+
+class _SilentAudio implements BibleAudioService {
+  @override
+  AudioPlaybackSnapshot get playback =>
+      const AudioPlaybackSnapshot(AudioPlaybackState.idle);
+  @override
+  bool get supportsPause => false;
+  @override
+  void addPlaybackListener(void Function() listener) {}
+  @override
+  void removePlaybackListener(void Function() listener) {}
+  @override
+  Future<List<TtsVoiceOption>> getVoices() async => [];
+  @override
+  Future<void> setRate(double rate) async {}
+  @override
+  Future<void> setVoice(TtsVoiceOption voice) async {}
+  @override
+  Future<void> speak(String text) async {}
+  @override
+  Future<void> pause() async {}
+  @override
+  Future<void> resume() async {}
+  @override
+  Future<void> stop() async {}
 }
