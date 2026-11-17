@@ -9,6 +9,76 @@ import 'package:scripture_planner/src/features/focus/domain/guard_readiness.dart
 import 'package:scripture_planner/src/features/focus/presentation/focus_screen.dart';
 
 void main() {
+  testWidgets(
+    'hung readiness read times out, permits retry and ignores late result',
+    (tester) async {
+      final first = Completer<GuardProbeSnapshot>();
+      final probe = _SequencedProbe([
+        () => first.future,
+        () async => GuardProbeSnapshot(
+          platform: GuardPlatform.android,
+          apps: [
+            for (final package in [
+              'com.google.android.youtube',
+              'com.instagram.android',
+              'com.facebook.katana',
+              'com.zhiliaoapp.musically',
+            ])
+              GuardInstalledApp(
+                packageName: package,
+                installed: false,
+                enabled: false,
+                versionName: null,
+                versionCode: null,
+              ),
+          ],
+        ),
+      ]);
+      final service = DefaultGuardReadinessService(probe: probe);
+      await tester.pumpWidget(_app(service));
+      expect(probe.calls, 0);
+      await tester.tap(find.byKey(const Key('check-protection-button')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 4999));
+      expect(find.text('Checking protection status'), findsOneWidget);
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.byKey(const Key('check-protection-button')),
+            )
+            .onPressed,
+        isNull,
+      );
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+      expect(find.text('Protection status unavailable'), findsOneWidget);
+      expect(find.textContaining('Nothing was changed'), findsOneWidget);
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.byKey(const Key('check-protection-button')),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      expect(probe.calls, 1);
+      await tester.tap(find.text('Try again'));
+      await tester.pump();
+      await tester.pump();
+      expect(probe.calls, 2);
+      expect(find.text('Qualification status'), findsOneWidget);
+      first.complete(
+        GuardProbeSnapshot(platform: GuardPlatform.android, apps: []),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Qualification status'), findsOneWidget);
+      expect(find.text('Protection status unavailable'), findsNothing);
+      expect(probe.calls, 2);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('does not probe until the user chooses Check protection', (
     tester,
   ) async {
@@ -364,4 +434,12 @@ class _FakeQualificationService implements GuardQualificationService {
 
   @override
   Future<void> openAccessibilitySettings() async {}
+}
+
+class _SequencedProbe implements GuardReadinessProbe {
+  _SequencedProbe(this.results);
+  final List<Future<GuardProbeSnapshot> Function()> results;
+  int calls = 0;
+  @override
+  Future<GuardProbeSnapshot> probe() => results[calls++]();
 }

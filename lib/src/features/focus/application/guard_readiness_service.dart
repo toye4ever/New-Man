@@ -21,7 +21,9 @@ class DefaultGuardReadinessService implements GuardReadinessService {
   @override
   Future<GuardReadinessReport> checkReadiness() async {
     try {
-      return _evaluator.evaluate(await _probe.probe());
+      // Bound only the read; timeout does not cancel or change native state.
+      final snapshot = await _probe.probe().timeout(const Duration(seconds: 5));
+      return _evaluator.evaluate(snapshot);
     } catch (_) {
       return GuardReadinessReport.probeFailed();
     }
