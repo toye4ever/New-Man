@@ -30,3 +30,34 @@ navigation discard, labeled checkbox semantics/touch targets, and small viewport
 with doubled text scaling. Tests enter synthetic strings only. Device screen
 reader/keyboard testing is still a separate acceptance gate. No sharing or native
 permission configuration follows from this unit.
+
+## Unexposed local persistence foundation
+
+The shipped screen above is unchanged: its in-memory draft still clears on
+cancel/navigation and is not stored. It does not import or open the new
+`ExplicitLocalCheckInStore`. There is no new UI, default path, startup hook,
+shared-preferences entry, existing-profile migration, network, export, backup,
+partner or sharing integration.
+
+The separate Dart repository can only be opened explicitly with persistence
+opt-in and an absolute, caller-owned private file. It recognizes its own SQLite
+application ID/schema or initializes an empty file; it rejects foreign/nonmatching
+stores. Morning commitments, typed evening outcomes (met / partly met / not met) and
+separate optional manual notes are keyed by a validated calendar date. Outcomes
+use stable stored keys `met`, `partly_met`, `not_met`, enforced by SQLite CHECK
+and strict decode; a missing evening check-in remains unrecorded. This private
+store schema is version 2; the earlier untyped prototype is rejected without
+migration or file changes. No existing app-profile schema is changed. No task, Scripture, contact or
+other opaque links are accepted at this stage. Writes target one date and one
+section, preserving the other section; repeating identical writes produces one
+entry. History reads are paginated, with no automatic pruning or retention rule.
+No deletion policy is inferred or implemented.
+
+Synthetic host tests use disposable files and close/new connection/reopen,
+section preservation, idempotency, date boundaries, rollback of an injected
+cross-day trigger effect, sanitized failures and byte-preservation of a rejected
+foreign database. They do not qualify Android filesystem durability, encryption,
+backup exclusion, process death or a consent/revocation UI. Before any UI wiring,
+resolve retention/deletion and storage/backup/privacy behavior explicitly; qualify
+those separately. This foundation does not change the existing draft promise or
+establish Today wrap-up integration.
