@@ -1,3 +1,4 @@
+import '../features/word/plans/domain/local_calendar.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
@@ -83,8 +84,9 @@ class _CreatePlanScreenState extends State<CreatePlanScreen> {
           ? ''
           : ReferenceUtils.formatForEditor(template.references);
       _startDate = DateTime(now.year, now.month, now.day);
-      _endDate = _startDate.add(
-        Duration(days: (template?.defaultDurationDays ?? 30) - 1),
+      _endDate = addLocalCalendarDays(
+        _startDate,
+        (template?.defaultDurationDays ?? 30) - 1,
       );
     }
   }
@@ -377,8 +379,8 @@ class _CreatePlanScreenState extends State<CreatePlanScreen> {
     final value = await showDatePicker(
       context: context,
       initialDate: _startDate,
-      firstDate: DateTime.now().subtract(const Duration(days: 3650)),
-      lastDate: DateTime.now().add(const Duration(days: 3650)),
+      firstDate: addLocalCalendarDays(DateTime.now(), -3650),
+      lastDate: addLocalCalendarDays(DateTime.now(), 3650),
     );
     if (value != null) {
       setState(() {
@@ -393,7 +395,7 @@ class _CreatePlanScreenState extends State<CreatePlanScreen> {
       context: context,
       initialDate: _endDate.isBefore(_startDate) ? _startDate : _endDate,
       firstDate: _startDate,
-      lastDate: _startDate.add(const Duration(days: 3650)),
+      lastDate: addLocalCalendarDays(_startDate, 3650),
     );
     if (value != null) setState(() => _endDate = value);
   }

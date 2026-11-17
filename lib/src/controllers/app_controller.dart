@@ -1,3 +1,4 @@
+import '../features/word/plans/domain/local_calendar.dart';
 import 'package:flutter/foundation.dart';
 import '../features/settings/application/appearance_preferences_repository.dart';
 import '../features/settings/domain/appearance_preferences.dart';
@@ -358,11 +359,7 @@ class AppController extends ChangeNotifier {
       effectiveDate.day,
     );
     final eligibleDays = <DateTime>[];
-    for (
-      var day = start;
-      !day.isAfter(plan.endDate);
-      day = day.add(const Duration(days: 1))
-    ) {
+    for (final day in localCalendarDates(start, plan.endDate)) {
       if (plan.readingWeekdays.contains(day.weekday)) eligibleDays.add(day);
     }
     return SchedulePreview(

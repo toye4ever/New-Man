@@ -1,3 +1,4 @@
+import 'local_calendar.dart';
 import '../../bible/domain/scripture_reference.dart';
 import 'reading_plan.dart';
 
@@ -197,13 +198,10 @@ class PlanScheduler {
     required DateTime endDate,
     required Set<int> weekdays,
   }) {
-    final dates = <DateTime>[];
-    var date = startDate;
-    while (!date.isAfter(endDate)) {
-      if (weekdays.contains(date.weekday)) dates.add(date);
-      date = date.add(const Duration(days: 1));
-    }
-    return dates;
+    return localCalendarDates(
+      startDate,
+      endDate,
+    ).where((date) => weekdays.contains(date.weekday)).toList();
   }
 
   List<DateTime> _spreadDates(List<DateTime> dates, int count) {
