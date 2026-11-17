@@ -1715,6 +1715,126 @@ void main() {
     },
   );
 
+  for (final mobile in [false, true]) {
+    testWidgets(
+      'long chapter narration reveals follows and resumes mobile=$mobile',
+      (tester) async {
+        tester.view.physicalSize = Size(mobile ? 390 : 1280, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final controller = AppController(
+          repository: _MemoryPlanRepository([]),
+          versionRepository: _InstalledKjvRepository(),
+        );
+        addTearDown(controller.dispose);
+        await controller.load();
+        final audio = _QueuedAudioService();
+        String line(int n) =>
+            '$n Synthetic verse $n with enough words to make a realistic long chapter for scrolling and narration acceptance.';
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ReaderScreen(
+              controller: controller,
+              request: BibleReaderRequest.manual(
+                references: const [
+                  ScriptureReference(book: 'Matthew', startChapter: 5),
+                ],
+              ),
+              audio: audio,
+              scriptureRepositoryFactory: (_) => _TextScriptureRepository(
+                [for (var n = 1; n <= 60; n++) line(n)].join('\n'),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final list = find.byType(ListView);
+        final scroll = tester.widget<ListView>(list).controller!;
+        void expectVisible(int n) {
+          final viewport = tester.getRect(list);
+          final verse = tester.getRect(find.text(line(n)));
+          expect(verse.top, greaterThanOrEqualTo(viewport.top));
+          expect(verse.bottom, lessThanOrEqualTo(viewport.bottom));
+        }
+
+        await tester.ensureVisible(find.text(line(30)));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(line(30)));
+        await tester.pumpAndSettle();
+        await tester.drag(list, const Offset(0, 10000));
+        await tester.pumpAndSettle();
+        expect(scroll.offset, 0);
+        expect(
+          tester.getRect(find.text(line(30))).top,
+          greaterThan(tester.getRect(list).bottom),
+        );
+        await tester.tap(
+          mobile
+              ? find.byTooltip('Listen from here')
+              : find.text('Listen from here'),
+        );
+        await tester.pumpAndSettle();
+        expect(audio.spoken.last, startsWith('30. '));
+        expectVisible(30);
+        await tester.tap(find.byTooltip('Clear selection'));
+        await tester.pumpAndSettle();
+        for (var n = 31; n <= 40; n++) {
+          audio.finishCurrent();
+          await tester.pumpAndSettle();
+          expect(audio.spoken.last, startsWith('$n. '));
+          expectVisible(n);
+        }
+        if (mobile) {
+          await tester.tap(find.byTooltip('Reading options'));
+          await tester.pumpAndSettle();
+        }
+        await tester.tap(find.byTooltip('Pause at this verse'));
+        await tester.pumpAndSettle();
+        final count = audio.spoken.length;
+        audio
+            .finishCurrent(); // Stopped utterance completing late must not advance.
+        await tester.pumpAndSettle();
+        expect(audio.spoken.length, count);
+        await tester.tap(find.byTooltip('Resume reading'));
+        await tester.pumpAndSettle();
+        expect(audio.spoken.length, count + 1);
+        expect(audio.spoken.last, startsWith('40. '));
+        if (mobile) {
+          Navigator.of(
+            tester.element(find.byTooltip('Pause at this verse')),
+          ).pop();
+          await tester.pumpAndSettle();
+        }
+        expectVisible(40);
+        await tester.drag(list, const Offset(0, 1800));
+        await tester.pumpAndSettle();
+        final optedOutOffset = scroll.offset;
+        audio.finishCurrent();
+        await tester.pumpAndSettle();
+        expect(audio.spoken.last, startsWith('41. '));
+        expect(scroll.offset, closeTo(optedOutOffset, 1));
+        if (mobile) {
+          await tester.tap(find.byTooltip('Reading options'));
+          await tester.pumpAndSettle();
+        }
+        await tester.tap(find.text('Follow reading'));
+        await tester.pumpAndSettle();
+        if (mobile) {
+          Navigator.of(
+            tester.element(find.byTooltip('Pause at this verse')),
+          ).pop();
+          await tester.pumpAndSettle();
+        }
+        expectVisible(41);
+        await tester.pumpWidget(const SizedBox());
+        audio.finishCurrent();
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('Listen from here starts at the earliest sparse selected verse', (
     tester,
   ) async {
