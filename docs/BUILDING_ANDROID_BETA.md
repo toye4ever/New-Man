@@ -273,3 +273,8 @@ YAML/Bash/context/output-path checks verify workflow wiring; they do not execute
 Gradle packaging. A fresh exact-head CI run must compile both splits and inspect
 the actual APKs before this correction is considered runtime verified. No new
 APK or device evidence is claimed from local tests.
+
+A separately approved, first-attempt-only one-day debug download is scoped in
+[ONE_DAY_DEBUG_DOWNLOAD.md](ONE_DAY_DEBUG_DOWNLOAD.md). Its literal prior-head
+guard is a narrow exception to earlier no-artifact checks, not standing upload
+permission; unsigned release verification remains unchanged.
