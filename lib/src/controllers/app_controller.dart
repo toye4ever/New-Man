@@ -1,3 +1,4 @@
+import 'dart:convert';
 import '../features/word/plans/domain/local_calendar.dart';
 import 'package:flutter/foundation.dart';
 import '../features/settings/application/appearance_preferences_repository.dart';
@@ -340,6 +341,14 @@ class AppController extends ChangeNotifier {
     );
   }
 
+  String _catchUpSource(ReadingPlan plan) => jsonEncode({
+    'start': plan.startDate.toIso8601String(),
+    'end': plan.endDate.toIso8601String(),
+    'weekdays': plan.readingWeekdays.toList()..sort(),
+    'references': plan.sourceReferences.map((r) => r.toJson()).toList(),
+    'assignments': plan.assignments.map((r) => r.toJson()).toList(),
+  });
+
   SchedulePreview previewCatchUpPlan(String planId, {DateTime? fromDate}) {
     final index = _plans.indexWhere((plan) => plan.id == planId);
     if (index == -1) throw ArgumentError('The plan no longer exists.');
@@ -368,6 +377,8 @@ class AppController extends ChangeNotifier {
       unfinishedReadingCount: unfinishedCount,
       eligibleDayCount: eligibleDays.length,
       targetEndDate: plan.endDate,
+      fromDate: effectiveDate,
+      sourceSchedule: _catchUpSource(plan),
     );
   }
 
@@ -376,18 +387,19 @@ class AppController extends ChangeNotifier {
       if (plan.endDate != preview.targetEndDate) {
         throw StateError('This plan changed. Preview Catch Me Up again.');
       }
-      Set<String> completedKeys(List<ScheduledReading> days) => {
-        for (final day in days)
-          for (final chapter in day.chapters)
-            if (day.isChapterCompleted(chapter))
-              ScheduledReading.chapterKey(chapter),
-      };
-      final previewCompletedKeys = completedKeys(preview.assignments);
-      final currentCompletedKeys = completedKeys(plan.assignments);
-      if (previewCompletedKeys.length != currentCompletedKeys.length ||
-          !previewCompletedKeys.containsAll(currentCompletedKeys)) {
+      if (_catchUpSource(plan) != preview.sourceSchedule) {
         throw StateError(
           'Reading progress changed. Preview Catch Me Up again.',
+        );
+      }
+      final expected = _scheduler.redistributeRemaining(
+        plan: plan,
+        fromDate: preview.fromDate,
+      );
+      if (jsonEncode(expected.map((r) => r.toJson()).toList()) !=
+          jsonEncode(preview.assignments.map((r) => r.toJson()).toList())) {
+        throw StateError(
+          'The proposed schedule changed. Preview Catch Me Up again.',
         );
       }
       return plan.copyWith(assignments: preview.assignments);

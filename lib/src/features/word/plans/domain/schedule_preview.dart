@@ -9,8 +9,13 @@ class SchedulePreview {
     required this.unfinishedReadingCount,
     required this.eligibleDayCount,
     required this.targetEndDate,
+    required this.fromDate,
+    required this.sourceSchedule,
   });
 
+  /// Snapshot of schedule inputs/progress, not a persisted schema revision.
+  final String sourceSchedule;
+  final DateTime fromDate;
   final String planId;
   final List<ScheduledReading> assignments;
   final int unfinishedReadingCount;

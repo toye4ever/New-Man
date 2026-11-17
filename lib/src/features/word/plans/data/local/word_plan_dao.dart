@@ -106,8 +106,9 @@ class WordPlanDao {
           for (final plan in plans) plan.id: plan.lastReadAssignmentHint,
         },
         chapterProgress: {
-          for (final plan in plans)
-            plan.id: plan.assignments
+          // Projection canonicalizes legacy/non-UUID IDs before inserting rows.
+          for (var index = 0; index < plans.length; index++)
+            projection.plans[index].id: plans[index].assignments
                 .map((day) => day.completedChapterKeys.toList()..sort())
                 .toList(),
         },

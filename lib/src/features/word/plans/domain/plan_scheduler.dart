@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'local_calendar.dart';
 import '../../bible/domain/scripture_reference.dart';
 import 'reading_plan.dart';
@@ -106,13 +107,13 @@ class PlanScheduler {
       readingWeekdays: plan.readingWeekdays,
     );
 
-    return <ScheduledReading>[
+    return _inDateOrder(<ScheduledReading>[
       ...completed,
       ...preserveCompletion(
         generated: rescheduled,
         previous: plan.assignments.where((day) => !day.completed).toList(),
       ),
-    ]..sort((left, right) => left.date.compareTo(right.date));
+    ]);
   }
 
   /// Regenerates only unfinished assignments. Completed assignments are kept
@@ -138,39 +139,115 @@ class PlanScheduler {
       endDate: endDate,
       readingWeekdays: readingWeekdays,
     );
-    return <ScheduledReading>[
+    return _inDateOrder(<ScheduledReading>[
       ...completed,
       ...preserveCompletion(
         generated: generated,
         previous: plan.assignments.where((day) => !day.completed).toList(),
       ),
-    ]..sort((left, right) => left.date.compareTo(right.date));
+    ]);
   }
 
   List<ScheduledReading> preserveCompletion({
     required List<ScheduledReading> generated,
     required List<ScheduledReading> previous,
   }) {
-    final completedKeys = previous
-        .expand((item) => item.chapters.where(item.isChapterCompleted))
-        .map(ScheduledReading.chapterKey)
-        .toSet();
-
-    return generated
-        .map(
-          (reading) => reading.copyWith(
-            completedChapterKeys: reading.chapters
-                .map(ScheduledReading.chapterKey)
-                .where(completedKeys.contains)
-                .toSet(),
-            completed:
-                reading.chapters.isNotEmpty &&
-                reading.chapters
-                    .map(ScheduledReading.chapterKey)
-                    .every(completedKeys.contains),
+    final progress = <String, Queue<bool>>{};
+    final orderedKeys = <String>[];
+    for (final reading in previous) {
+      final fullChapters = <String>{};
+      for (final ref in reading.references) {
+        if (ref.startVerse != null || ref.endVerse != null) continue;
+        for (final chapter in _expandChapterRange(ref)) {
+          if (!fullChapters.add(ScheduledReading.chapterKey(chapter))) {
+            throw ArgumentError(
+              'Repeated chapters within one reading have ambiguous progress. Review the plan before rescheduling.',
+            );
+          }
+        }
+      }
+      for (final chapter in reading.chapters) {
+        final key = ScheduledReading.chapterKey(chapter);
+        orderedKeys.add(key);
+        progress
+            .putIfAbsent(key, Queue<bool>.new)
+            .add(reading.isChapterCompleted(chapter));
+      }
+    }
+    final counts = {
+      for (final entry in progress.entries) entry.key: entry.value.length,
+    };
+    // The persisted format has one completion flag per chapter per reading.
+    // Keep repeated occurrences in separate same-date readings when regrouping.
+    final separated = <ScheduledReading>[];
+    for (final reading in generated) {
+      var references = <ScriptureReference>[];
+      final keys = <String>{};
+      void flush() {
+        if (references.isEmpty) return;
+        separated.add(
+          reading.copyWith(
+            references: references,
+            completed: false,
+            completedChapterKeys: {},
           ),
-        )
-        .toList();
+        );
+        references = <ScriptureReference>[];
+        keys.clear();
+      }
+
+      for (final ref in reading.references) {
+        final nextKeys = ScheduledReading(
+          date: reading.date,
+          references: [ref],
+        ).chapters.map(ScheduledReading.chapterKey).toSet();
+        if (nextKeys.any((key) => keys.contains(key) && (counts[key] ?? 0) > 1)) {
+          flush();
+        }
+        references.add(ref);
+        keys.addAll(nextKeys);
+      }
+      flush();
+    }
+    var cursor = 0;
+    final result = <ScheduledReading>[];
+    for (final reading in separated) {
+      final completed = <String>{};
+      for (final chapter in reading.chapters) {
+        final key = ScheduledReading.chapterKey(chapter);
+        if (cursor >= orderedKeys.length ||
+            orderedKeys[cursor++] != key ||
+            progress[key]!.isEmpty) {
+          throw ArgumentError(
+            'Reading occurrences cannot be matched in order. Review the plan before rescheduling.',
+          );
+        }
+        if (progress[key]!.removeFirst()) completed.add(key);
+      }
+      result.add(
+        reading.copyWith(
+          completedChapterKeys: completed,
+          completed:
+              reading.chapters.isNotEmpty &&
+              completed.length == reading.chapters.length,
+        ),
+      );
+    }
+    if (cursor != orderedKeys.length) {
+      throw ArgumentError(
+        'Reading occurrences cannot be matched in order. Review the plan before rescheduling.',
+      );
+    }
+    return result;
+  }
+
+  List<ScheduledReading> _inDateOrder(List<ScheduledReading> readings) {
+    final indexed = readings.indexed.toList()
+      ..sort((a, b) {
+        final byDate = a.$2.date.compareTo(b.$2.date);
+        return byDate != 0 ? byDate : a.$1.compareTo(b.$1);
+      });
+    return indexed.map((entry) => entry.$2).toList();
   }
 
   List<ScriptureReference> _expandChapterRange(ScriptureReference reference) {
