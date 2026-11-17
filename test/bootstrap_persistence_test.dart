@@ -145,8 +145,16 @@ void main() {
             ),
           );
           await saved.recordSuccessfulOpen(anchor);
+          final subtasks = [
+            current!.taskService.newSubtask(
+              title: 'Synthetic checked step',
+              isCompleted: true,
+            ),
+            current!.taskService.newSubtask(title: 'Synthetic open step'),
+          ];
           final first = await current!.taskService.createTask(
             title: 'Synthetic first',
+            subtasks: subtasks,
             dueDate: date,
             timeBlock: TaskTimeBlock(
               plannedDate: date,
@@ -211,6 +219,9 @@ void main() {
           expect(restoredFirst.title, 'Synthetic first');
           expect(restoredFirst.dueDate, date);
           expect(restoredFirst.isCompleted, isFalse);
+          // Value equality covers stable IDs, order, titles and mixed completion.
+          expect(restoredFirst.subtasks, subtasks);
+          expect(restoredFirst.completedSubtaskCount, 1);
           expect(restoredFirst.timeBlock?.plannedDate, date);
           expect(restoredFirst.timeBlock?.startMinutesLocal, 540);
           expect(restoredFirst.timeBlock?.endMinutesLocal, 600);
@@ -234,6 +245,8 @@ void main() {
           expect(finalTasks, hasLength(2));
           final cleared = finalTasks.singleWhere((t) => t.id == first.id);
           expect(cleared.timeBlock, isNull);
+          expect(cleared.subtasks, subtasks);
+          expect(cleared.completedSubtaskCount, 1);
           expect(cleared.dueDate, date);
           expect(
             (await current!.taskService.loadDailyPriorities(
