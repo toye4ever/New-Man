@@ -19,7 +19,26 @@ class _SavedScriptureScreenState extends State<SavedScriptureScreen> {
   int _refresh = 0;
   SavedScriptureRepository get _repository =>
       widget.controller.savedScriptureRepository;
-  void _reload() => setState(() => _refresh++);
+  void _reload() {
+    if (mounted) setState(() => _refresh++);
+  }
+
+  Future<void> _mutate(Future<void> Function() action) async {
+    final section = _section;
+    try {
+      await action();
+      if (mounted && section == _section) _reload();
+    } catch (_) {
+      if (!mounted || section != _section) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Saved Scripture could not be updated. Please try again.',
+          ),
+        ),
+      );
+    }
+  }
 
   void _open(ScriptureAnchor anchor) => Navigator.of(context).push(
     MaterialPageRoute<void>(
@@ -49,7 +68,7 @@ class _SavedScriptureScreenState extends State<SavedScriptureScreen> {
       ),
       Expanded(
         child: KeyedSubtree(
-          key: ValueKey(_refresh),
+          key: ValueKey((_section, _refresh)),
           child: switch (_section) {
             0 => _items(
               _repository.loadBookmarks(),
@@ -85,10 +104,7 @@ class _SavedScriptureScreenState extends State<SavedScriptureScreen> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () async {
-                      await _repository.clearHistory();
-                      _reload();
-                    },
+                    onPressed: () => _mutate(_repository.clearHistory),
                     child: const Text('Clear history'),
                   ),
                 ),
@@ -115,10 +131,7 @@ class _SavedScriptureScreenState extends State<SavedScriptureScreen> {
       IconButton(
         tooltip: tooltip,
         icon: const Icon(Icons.delete_outline),
-        onPressed: () async {
-          await remove();
-          _reload();
-        },
+        onPressed: () => _mutate(remove),
       );
 
   Widget _items<T>(
@@ -131,8 +144,21 @@ class _SavedScriptureScreenState extends State<SavedScriptureScreen> {
   }) => FutureBuilder<List<T>>(
     future: future,
     builder: (context, snapshot) {
-      if (!snapshot.hasData) {
+      if (!snapshot.hasData && !snapshot.hasError) {
         return const Center(child: CircularProgressIndicator());
+      }
+      if (snapshot.hasError) {
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Saved Scripture could not be loaded. Please try again.',
+              ),
+              TextButton(onPressed: _reload, child: const Text('Retry')),
+            ],
+          ),
+        );
       }
       final items = snapshot.data!;
       if (items.isEmpty) return Center(child: Text(empty));
