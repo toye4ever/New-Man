@@ -218,6 +218,121 @@ void main() {
     }
   }
 
+  for (final repeat in ['off', 'once', 'continuously']) {
+    testWidgets('Plan narration repeat $repeat preserves reading progress', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repository = _MemoryPlanRepository([chapterPlan()]);
+      final controller = AppController(
+        repository: repository,
+        versionRepository: _InstalledKjvRepository(),
+      );
+      addTearDown(controller.dispose);
+      await controller.load();
+      final audio = _QueuedAudioService();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ReaderScreen(
+            controller: controller,
+            request: BibleReaderRequest.fromPlanReading(
+              references: chapterPlan().assignments.first.references,
+              initialTranslation: BibleTranslation.kjv,
+              planId: 'chapter-plan',
+              assignmentIndex: 0,
+            ),
+            audio: audio,
+            scriptureRepositoryFactory: (_) => _TextScriptureRepository(
+              '1 Synthetic first.\n2 Synthetic second.\n3 Synthetic third.',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final before = repository.plans.single.toJson();
+      final saves = repository.saveCalls;
+      await tester.tap(find.text('2 Synthetic second.'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Listen from here'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Clear selection'));
+      await tester.pumpAndSettle();
+      if (repeat != 'off') {
+        await tester.tap(find.byTooltip('Repeat chapter off'));
+        await tester.pumpAndSettle();
+        if (repeat == 'continuously') {
+          await tester.tap(find.byTooltip('Repeat chapter once'));
+          await tester.pumpAndSettle();
+        }
+      }
+      expect(audio.spoken, ['2. Synthetic second.']);
+      audio.finishCurrent();
+      await tester.pumpAndSettle();
+      expect(audio.spoken.last, '3. Synthetic third.');
+      audio.finishCurrent();
+      await tester.pumpAndSettle();
+      if (repeat != 'off') {
+        expect(audio.spoken.last, '1. Synthetic first.');
+        // Pause/Resume restarts the same complete canonical verse, even in a repeat.
+        await tester.tap(find.byTooltip('Pause at this verse'));
+        await tester.pumpAndSettle();
+        audio.finishCurrent();
+        await tester.pumpAndSettle();
+        expect(audio.spoken.length, 3);
+        await tester.tap(find.byTooltip('Resume reading'));
+        await tester.pumpAndSettle();
+        expect(audio.spoken.last, '1. Synthetic first.');
+        audio.finishCurrent();
+        await tester.pumpAndSettle();
+        expect(audio.spoken.last, '2. Synthetic second.');
+        audio.finishCurrent();
+        await tester.pumpAndSettle();
+        expect(audio.spoken.last, '3. Synthetic third.');
+        audio.finishCurrent();
+        await tester.pumpAndSettle();
+        if (repeat == 'continuously') {
+          expect(audio.spoken.last, '1. Synthetic first.');
+          await tester.tap(find.byTooltip('Repeat chapter continuously'));
+          await tester.pumpAndSettle();
+          for (var n = 2; n <= 3; n++) {
+            audio.finishCurrent();
+            await tester.pumpAndSettle();
+            expect(audio.spoken.last, startsWith('$n. '));
+          }
+          audio.finishCurrent();
+          await tester.pumpAndSettle();
+        }
+      }
+      expect(
+        audio.spoken,
+        repeat == 'off'
+            ? ['2. Synthetic second.', '3. Synthetic third.']
+            : [
+                '2. Synthetic second.',
+                '3. Synthetic third.',
+                '1. Synthetic first.',
+                '1. Synthetic first.',
+                '2. Synthetic second.',
+                '3. Synthetic third.',
+                if (repeat == 'continuously') ...[
+                  '1. Synthetic first.',
+                  '2. Synthetic second.',
+                  '3. Synthetic third.',
+                ],
+              ],
+      );
+      expect(find.byTooltip('Pause at this verse'), findsNothing);
+      expect(find.text('Listen'), findsOneWidget);
+      expect(repository.plans.single.toJson(), before);
+      expect(repository.saveCalls, saves);
+      await tester.pumpWidget(const SizedBox());
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   for (final mobile in [false, true]) {
     for (final pending in [false, true]) {
       testWidgets(
