@@ -44,6 +44,86 @@ def verify_native_libraries(apk: Path, variant: str) -> list[str]:
     return failures
 
 
+
+PAGE_SIZE = 16 * 1024
+MAX_PROGRAM_HEADER_OFFSET = 1024 * 1024
+MAX_PROGRAM_HEADERS = 1024
+
+
+def verify_page_alignment(apk: Path) -> list[str]:
+    """Bounded ELF64 PT_LOAD and stored-native ZIP checks, never execute/extract code.
+
+    This is not a replacement for SDK zipalign or runtime/RELRO qualification.
+    The existing native identity check separately restricts every .so to ARM64.
+    """
+    failures = []
+    with zipfile.ZipFile(apk) as archive, apk.open("rb") as raw:
+        libraries = [entry for entry in archive.infolist() if entry.filename.endswith(".so")]
+        if not libraries:
+            return ["No native libraries found for static page-alignment inspection."]
+        for entry in libraries:
+            name = entry.filename
+            if entry.compress_type == zipfile.ZIP_STORED:
+                raw.seek(entry.header_offset)
+                local = raw.read(30)
+                if len(local) != 30 or local[:4] != b"PK\x03\x04":
+                    failures.append(f"{name}: malformed local ZIP header.")
+                else:
+                    method = struct.unpack_from("<H", local, 8)[0]
+                    name_size, extra_size = struct.unpack_from("<HH", local, 26)
+                    offset = entry.header_offset + 30 + name_size + extra_size
+                    if method != zipfile.ZIP_STORED or offset + entry.compress_size > apk.stat().st_size:
+                        failures.append(f"{name}: inconsistent stored ZIP entry.")
+                    elif offset % PAGE_SIZE:
+                        failures.append(f"{name}: stored ZIP data offset {offset} is not 16 KiB aligned.")
+            with archive.open(entry) as library:
+                header = library.read(64)
+                if len(header) != 64 or header[:7] != b"\x7fELF\x02\x01\x01":
+                    failures.append(f"{name}: cannot inspect ELF64 little-endian load headers.")
+                    continue
+                phoff = struct.unpack_from("<Q", header, 32)[0]
+                phsize, phnum = struct.unpack_from("<HH", header, 54)
+                if (phsize != 56 or not 1 <= phnum <= MAX_PROGRAM_HEADERS
+                        or not 64 <= phoff <= MAX_PROGRAM_HEADER_OFFSET
+                        or phoff + phsize * phnum > entry.file_size):
+                    failures.append(f"{name}: invalid or unsupported bounded ELF program-header table.")
+                    continue
+                library.seek(phoff)
+                table = library.read(phsize * phnum)
+                if len(table) != phsize * phnum:
+                    failures.append(f"{name}: truncated ELF program-header table.")
+                    continue
+                loads = 0
+                for index in range(phnum):
+                    kind, _, offset, address, _, _, _, alignment = struct.unpack_from(
+                        "<IIQQQQQQ", table, index * phsize)
+                    if kind != 1:  # PT_LOAD only; other segment types have different rules.
+                        continue
+                    loads += 1
+                    if alignment < PAGE_SIZE or alignment & (alignment - 1):
+                        failures.append(f"{name}: PT_LOAD[{index}] p_align={alignment:#x}; require power-of-two >= 0x4000.")
+                    elif offset % alignment != address % alignment:
+                        failures.append(f"{name}: PT_LOAD[{index}] file/virtual offsets are not congruent for p_align={alignment:#x}.")
+                if not loads:
+                    failures.append(f"{name}: no PT_LOAD segments inspected.")
+    return failures
+
+
+def verify_zipalign(apk: Path, executable: str) -> list[str]:
+    """Run only the caller-selected trusted SDK tool, in verification mode."""
+    try:
+        result = subprocess.run(
+            [executable, "-c", "-P", "16", "-v", "4", str(apk.resolve())],
+            check=False, capture_output=True, text=True, encoding="utf-8", timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError, UnicodeError) as error:
+        return [f"ZIP alignment NOT verified: SDK zipalign unavailable/failed: {error}."]
+    if result.returncode:
+        return [f"ZIP alignment failed for {apk.name} (zipalign exit {result.returncode}):\n"
+                + result.stdout + result.stderr]
+    return []
+
+
 def verify_manifest(root: ElementTree.Element, variant: str) -> list[str]:
     if root.tag != "manifest":
         return ["Input is not an Android manifest."]
@@ -123,6 +203,7 @@ def main() -> int:
     parser.add_argument("variant", choices=("debug", "release"))
     parser.add_argument("apk", type=Path)
     parser.add_argument("--apkanalyzer", default="apkanalyzer")
+    parser.add_argument("--zipalign", required=True, help="Trusted preinstalled SDK zipalign path; never installs tools")
     opts = parser.parse_args()
     if not opts.apk.is_file():
         parser.error(f"APK does not exist: {opts.apk}")
@@ -133,13 +214,15 @@ def main() -> int:
         )
         errors = verify_manifest(ElementTree.fromstring(result.stdout), opts.variant)
         errors.extend(verify_native_libraries(opts.apk, opts.variant))
-    except (OSError, subprocess.SubprocessError, ElementTree.ParseError, zipfile.BadZipFile, RuntimeError, EOFError) as error:
+        errors.extend(verify_page_alignment(opts.apk))
+        errors.extend(verify_zipalign(opts.apk, opts.zipalign))
+    except (OSError, subprocess.SubprocessError, ElementTree.ParseError, zipfile.BadZipFile, RuntimeError, EOFError, UnicodeError, struct.error) as error:
         print(f"Could not inspect Android candidate: {error}", file=sys.stderr)
         return 2
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1
-    print(f"{opts.variant.capitalize()} APK app ID, launcher label, backup policy, Guard/reminder containment and ARM64 ELF headers verified.")
+    print(f"{opts.variant.capitalize()} APK app ID, launcher label, backup policy, Guard/reminder containment and ARM64 ELF identity, static PT_LOAD and ZIP 16 KiB alignment verified (not runtime/RELRO/AAB qualification).")
     return 0
 
 

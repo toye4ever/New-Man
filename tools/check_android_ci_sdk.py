@@ -4,6 +4,7 @@
 This checker does not install SDK packages, accept licenses, or access the network.
 """
 import argparse
+import os
 from pathlib import Path
 import sys
 
@@ -25,6 +26,9 @@ def verify_sdk(root: Path, host_tag: str = "darwin-x86_64") -> list[str]:
         root / "ndk" / NDK_VERSION / "source.properties",
     ]
     failures = [f"Missing preinstalled SDK file: {path}" for path in required if not path.is_file()]
+    zipalign = root / "build-tools" / BUILD_TOOLS / "zipalign"
+    if zipalign.is_file() and not os.access(zipalign, os.X_OK):
+        failures.append(f"Preinstalled zipalign is not executable: {zipalign}")
     properties = root / "ndk" / NDK_VERSION / "source.properties"
     if properties.is_file():
         try:

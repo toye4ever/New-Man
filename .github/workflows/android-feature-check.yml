@@ -106,7 +106,7 @@ jobs:
         id: check_debug_apk
         run: |
           set -euo pipefail
-          python3 tools/check_android_candidate.py debug build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk --apkanalyzer "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
+          python3 tools/check_android_candidate.py debug build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk --apkanalyzer "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" --zipalign "$ANDROID_HOME/build-tools/36.0.0/zipalign"
           shasum -a 256 build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk
       - name: Optionally check unsigned release ARM64 candidate
         if: hashFiles('.ci/verify-unsigned-release') != ''
@@ -117,7 +117,7 @@ jobs:
           env 'ORG_GRADLE_PROJECT_android.builder.sdkDownload=false' flutter build apk --release --target-platform android-arm64 --split-per-abi --no-pub
           apk=build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
           python3 tools/check_unsigned_apk.py "$apk"
-          python3 tools/check_android_candidate.py release "$apk" --apkanalyzer "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
+          python3 tools/check_android_candidate.py release "$apk" --apkanalyzer "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" --zipalign "$ANDROID_HOME/build-tools/36.0.0/zipalign"
           shasum -a 256 "$apk"
           git diff --exit-code -- pubspec.lock android/app/build.gradle.kts android/settings.gradle.kts android/gradle/wrapper/gradle-wrapper.properties
       - name: Recheck the authorized debug payload
@@ -136,7 +136,7 @@ jobs:
           apk=build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk
           test -f "$apk"
           test ! -L "$apk"
-          python3 tools/check_android_candidate.py debug "$apk" --apkanalyzer "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
+          python3 tools/check_android_candidate.py debug "$apk" --apkanalyzer "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" --zipalign "$ANDROID_HOME/build-tools/36.0.0/zipalign"
           shasum -a 256 "$apk"
       - name: New Man Dev for Galaxy
         if: >-

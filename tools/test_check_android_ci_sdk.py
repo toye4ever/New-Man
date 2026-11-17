@@ -26,6 +26,8 @@ class PreinstalledSdkTests(unittest.TestCase):
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
             target.touch()
+            if name.endswith("/zipalign"):
+                target.chmod(0o755)
         (self.root / self.files[-1]).write_text(f"Pkg.Revision = {NDK_VERSION}\n", encoding="utf-8")
 
     def test_empty_sdk_lists_missing_requirements_without_mutation(self):
@@ -55,6 +57,14 @@ class PreinstalledSdkTests(unittest.TestCase):
         self.populate()
         (self.root / f"build-tools/{BUILD_TOOLS}/aapt2").unlink()
         self.assertIn("aapt2", verify_sdk(self.root)[0])
+
+    def test_zipalign_must_be_present_and_executable(self):
+        self.populate()
+        tool = self.root / f"build-tools/{BUILD_TOOLS}/zipalign"
+        tool.chmod(0o644)
+        self.assertIn("not executable", verify_sdk(self.root)[0])
+        tool.unlink()
+        self.assertIn("zipalign", verify_sdk(self.root)[0])
 
     def test_malformed_ndk_metadata_fails_closed(self):
         self.populate()

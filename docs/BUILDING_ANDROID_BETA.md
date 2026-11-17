@@ -49,8 +49,8 @@ After building, use Android SDK `apkanalyzer` (with SDK build-tools installed)
 from the same SDK to inspect the merged APK manifest:
 
 ```sh
-python3 tools/check_android_candidate.py release build/app/outputs/flutter-apk/app-release.apk
-python3 tools/check_android_candidate.py debug build/app/outputs/flutter-apk/app-debug.apk
+python3 tools/check_android_candidate.py release build/app/outputs/flutter-apk/app-release.apk --zipalign "$ANDROID_HOME/build-tools/36.0.0/zipalign"
+python3 tools/check_android_candidate.py debug build/app/outputs/flutter-apk/app-debug.apk --zipalign "$ANDROID_HOME/build-tools/36.0.0/zipalign"
 python3 -B -m unittest discover -s tools -p test_check_android_candidate.py
 ```
 
@@ -229,10 +229,11 @@ reminder receivers and the task-reminder broadcast action. These boundaries matc
 the still-unregistered foundation; any future reviewed wiring must explicitly
 revisit them. This unit adds no permission or native/app behavior.
 
-The workflow already calls this checker for Debug and unsigned Release; no
-workflow changes are needed. The new gate has not run against a new exact-head
-APK yet. Header inspection does not verify all ELF segments, full ZIP payload
-integrity, runtime linking, 16 KB compatibility/alignment or hardware behavior.
+The workflow calls this checker for Debug and unsigned Release. This original
+identity-header stage alone does not verify ELF load alignment, ZIP payload
+integrity, runtime linking, 16 KB compatibility or hardware behavior. The later
+static alignment gate below adds separate checks and needs new exact-head CI
+evidence.
 It does not prove Debug's signer/certificate identity. Release absence of signing
 material remains the separate unsigned-container check, not a claim of signed
 release provenance. Record compiled-manifest, container, native-header and actual
@@ -278,3 +279,43 @@ A separately approved, first-attempt-only one-day debug download is scoped in
 [ONE_DAY_DEBUG_DOWNLOAD.md](ONE_DAY_DEBUG_DOWNLOAD.md). Its literal prior-head
 guard is a narrow exception to earlier no-artifact checks, not standing upload
 permission; unsigned release verification remains unchanged.
+
+
+## Static 16 KiB alignment gate
+
+The feature workflow now requires two independent checks on **each exact debug
+and unsigned release APK**, following [Android's page-size guidance](https://developer.android.com/guide/practices/page-sizes):
+
+- Bounded, dependency-free inspection of ELF64 PT_LOAD headers requires a
+  power-of-two `p_align >= 0x4000` and congruent file/virtual offsets. A stored
+  native library's local ZIP data offset must also be divisible by 16384.
+- The pinned preinstalled SDK tool runs `zipalign -c -P 16 -v 4 APK` in read-only
+  verification mode. This independently checks APK alignment, including the
+  ordinary four-byte alignment of other uncompressed entries. Compressed native
+  entries have no direct ZIP mmap alignment requirement; ELF checks still apply.
+
+`--zipalign` is mandatory. The existing SDK preflight already required the
+Build-Tools 36.0.0 file, and now also requires it executable. The
+[standard Intel runner inventory](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-Readme.md)
+lists Build-Tools 36.0.0. Missing tools, unsupported flags, tool timeout/nonzero
+exit, malformed/unsupported ELF tables or misalignment fail the gate; no SDK
+installation, realignment, signing or fallback is attempted. Failures identify
+library/segment or ZIP offset, or retain the SDK tool's package diagnostics.
+
+Synthetic positive/negative tests exercise 16/64 KiB versus 4 KiB LOAD alignment,
+malformed tables, misaligned stored native entries, compressed libraries and the
+exact trusted-tool argument vector/failure path. They do not execute libraries.
+The SDK subprocess is mocked in these portable tests; this cloud executor has no
+SDK zipalign. Actual Build-Tools execution and the current APKs' alignment remain
+pending an exact-head CI run, not established by fixture success.
+ELF program tables are bounded to 1024 entries and a 1 MiB starting offset;
+unsupported layouts fail explicitly rather than receiving an alignment pass.
+
+Local SDK zipalign is unavailable in the restored executor. Its invocation is
+mocked in portable tests; **a fresh exact-head hosted build must establish the
+real zipalign result on both APKs**. Prior successful build/identity checks do not
+establish this new result. No current APK is declared aligned or broken here.
+These are static PT_LOAD/ZIP checks only: no RELRO audit, full ELF validity,
+runtime linking, 16 KiB device behavior, AAB/Play or signing qualification is
+claimed. Packaging/linker settings and the literal one-day upload authorization
+conditions are unchanged.
