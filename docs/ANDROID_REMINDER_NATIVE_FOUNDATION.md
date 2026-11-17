@@ -5,8 +5,10 @@ method-channel handler and portable Java policy. It is deliberately gated by
 `qualified() == false`, not registered in MainActivity, and absent from all
 manifests. No permission, receiver declaration or live toggle is added. No OS
 operation or permission prompt was performed during development. Native Android
-type/link compilation and device qualification are pending; Kotlin syntax parsing
-and portable Java assertions are narrower evidence.
+type/link compilation passed at the
+[November 17 exact build checkpoint](BUILDING_ANDROID_BETA.md#verified-feature-checkpoint--november-17-2026).
+Device qualification remains pending; Kotlin syntax parsing and portable Java
+assertions alone are narrower evidence.
 
 ## Native contract
 
@@ -101,8 +103,9 @@ errors only. Neither check proves Android APIs link or that an APK delivers.
    are introduced by this native review.
 3. After parent review/publication, the existing feature-only Android workflow
    must build the exact commit with preinstalled SDK/NDK, pinned host CMake and
-   debug ARM64. This is the first Android type/link compilation gate for this
-   foundation. Do not interpret portable tests or Kotlin parsing as compilation.
+   debug ARM64. This remains the Android type/link compilation gate; the
+   checkpoint linked above has passed it. Do not interpret portable tests or
+   Kotlin parsing as compilation.
    Run the existing compiled-manifest checker; verify receiver/notification
    permission absence and development package suffix. No separate upload or
    device workflow is authorized here.

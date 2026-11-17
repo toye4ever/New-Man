@@ -2,13 +2,29 @@
 
 This snapshot preserves the application source and Android configuration retained for the already-published 0.2.3-beta.1+5 APK. It is a beta-only configuration with no product flavors. It is not the later contributor-flavor configuration, a production signing setup, or a verified bit-for-bit reproduction recipe.
 
+## Verified feature checkpoint — November 17, 2026
+
+At `f674959276cbbe47d1cafaf8545f0384263d6c85` (tree
+`6904aa0e1b2a4e1d39d3371cd2470806715ee712`),
+[Android job 133920742737](https://github.com/toye4ever/New-Man/actions/runs/44048696141/job/133920742737)
+passed Debug ARM64 and unsigned release builds, compiled manifest/containment
+checks and static 16 KiB ELF LOAD/ZIP checks, including real SDK zipalign.
+No artifact was uploaded by that run. This does not establish a signed release,
+AAB/Play, handset startup/runtime, 16 KiB device behavior or live backend
+qualification. See the [existing acceptance/blocker matrix](PRODUCTION_RELEASE_GAPS.md)
+and [owner-run checklist](GALAXY_ISOLATED_SMOKE.md).
+
+The original binary provenance and earlier failure descriptions below are
+historical context. The checkpoint above supersedes their pending-build claims
+for this exact feature revision, without claiming reproduction of the old APK.
+
 ## Prerequisites
 
 Use Flutter 3.44.8 / Dart 3.12.2 and a compatible Android SDK and Java installation. The source specifies Gradle 9.1.0, Android Gradle Plugin 9.0.1, Kotlin plugin 2.3.20, and Java/JVM target 17. Java target 17 is not itself a claim that Java 17 is a sufficient Gradle runtime: use a JDK compatible with the pinned Android Gradle Plugin. Android Studio's compatible bundled JDK is the normal starting point.
 
 The existing artifact targets and compiles against API 36, has minimum API 24, and includes ARM64 only. The lockfile requires Flutter >=3.44 and Dart >=3.12 even though pubspec.yaml has a broader Dart constraint. Restore the checked-in lockfile without upgrading it.
 
-Normal Flutter tooling must generate local SDK properties, plugin registration, and any missing wrapper/bootstrap files. Local SDK paths and generated dependency files are intentionally absent. The original build used an assisted cached SDK/native-asset setup. A later incremental build succeeded after an earlier failed attempt, and independent review checked its unsigned-to-signed payload preservation. The build also used external ARM64/native initialization overlays that are not included in this curated source snapshot. This portable recipe still needs clean-checkout qualification. Network access may be needed for official dependencies.
+Normal Flutter tooling must generate local SDK properties, plugin registration, and any missing wrapper/bootstrap files. Local SDK paths and generated dependency files are intentionally absent. The original build used an assisted cached SDK/native-asset setup. A later incremental build succeeded after an earlier failed attempt, and independent review checked its unsigned-to-signed payload preservation. The build also used external ARM64/native initialization overlays that are not included in this curated source snapshot. The historical standalone recipe is distinct from the exact feature CI checkpoint above. Network access may be needed for official dependencies.
 
 ## Source checks
 
@@ -99,8 +115,7 @@ platform-tools, NDK 28.2.13676358 and JDK 21. Runner inventory may change, so th
 actual preflight result remains authoritative. Local synthetic preflight tests
 do not prove runner readiness or Android compilation. A passing debug ARM64
 build and compiled-manifest check remain distinct from installation and device
-smoke qualification. The workflow must be published with GitHub workflow-write
-access before a run can provide that evidence.
+smoke qualification. The exact published run above now provides build/static evidence.
 
 Run 43955599219 passed SDK/NDK/JDK preflight and locked Flutter dependencies,
 then `configureCMakeDebug[arm64-v8a]` failed CXX1300 because CMake 3.22.1 was
@@ -171,8 +186,8 @@ uploaded, installed, signed, released or deployed. No secrets are needed.
 An unsigned release candidate is a build/containment check, not an installable
 production release or hardware qualification. The real debug build at published
 `e99ee2a` passed in run 43962308608; it provides no evidence that this optional
-release path has run. Exact-head release CI remains pending publication and runner execution.
-The private debug acceptance commit `fe15c13` remains separate and unchanged.
+release path has run. The exact checkpoint above now verifies the unsigned release path; hardware
+qualification remains separate.
 
 
 ## Intel host attempt after ARM runner capacity failure
@@ -192,9 +207,9 @@ install missing packages. Flutter tag/revision, lockfile, Gradle and CMake pins,
 read-only contents permission and the feature-only repository/ref guard remain
 unchanged. No larger runner, signing, binary upload, deployment or device action
 is added. `.ci/verify-unsigned-release` now contains `enabled`, selecting the
-existing release-containment step after the unchanged debug checks. Runtime
-runner availability, compilation, unsigned container and compiled manifests for
-this exact combined candidate are pending CI. No capacity guarantee is made.
+existing release-containment step after the debug checks. The checkpoint above
+now verifies runner execution, compilation, unsigned container and compiled
+manifest checks. No capacity guarantee is made.
 
 
 ## Distinct Android debug launcher label
@@ -207,8 +222,9 @@ other attributes/children. The main/public label remains `New Man Beta`; IDs,
 backups, Guard service containment and permission declarations are unchanged.
 The compiled-manifest checker now requires these exact variant labels and rejects
 MAIN/LAUNCHER activities/aliases with conflicting label overrides. Source XML and
-synthetic checker tests do not execute AGP merging or inspect a new APK. Those
-remain exact-head CI gates; actual Galaxy launcher presentation remains NOT RUN.
+synthetic checker tests do not execute AGP merging or inspect a new APK. The
+checkpoint above verifies the compiled labels; actual handset launcher
+presentation remains a separate owner-run gate.
 A visible Dev label helps selection but never substitutes for package/hash proof.
 
 
@@ -271,9 +287,8 @@ before any separately authorized device work. No artifact upload is added.
 Portable regression fixtures reproduce all four dependency paths and prove both
 variants reject that fat layout while accepting the expected ARM64 split layout.
 YAML/Bash/context/output-path checks verify workflow wiring; they do not execute
-Gradle packaging. A fresh exact-head CI run must compile both splits and inspect
-the actual APKs before this correction is considered runtime verified. No new
-APK or device evidence is claimed from local tests.
+Gradle packaging. The checkpoint above compiled both splits and inspected their actual APKs.
+That is build/static evidence, not device runtime evidence.
 
 A separately approved, first-attempt-only one-day debug download is scoped in
 [ONE_DAY_DEBUG_DOWNLOAD.md](ONE_DAY_DEBUG_DOWNLOAD.md). Its literal prior-head
@@ -306,15 +321,14 @@ Synthetic positive/negative tests exercise 16/64 KiB versus 4 KiB LOAD alignment
 malformed tables, misaligned stored native entries, compressed libraries and the
 exact trusted-tool argument vector/failure path. They do not execute libraries.
 The SDK subprocess is mocked in these portable tests; this cloud executor has no
-SDK zipalign. Actual Build-Tools execution and the current APKs' alignment remain
-pending an exact-head CI run, not established by fixture success.
+SDK zipalign. The checkpoint above establishes actual Build-Tools execution and static
+alignment of both exact APKs; fixture success alone does not.
 ELF program tables are bounded to 1024 entries and a 1 MiB starting offset;
 unsupported layouts fail explicitly rather than receiving an alignment pass.
 
 Local SDK zipalign is unavailable in the restored executor. Its invocation is
-mocked in portable tests; **a fresh exact-head hosted build must establish the
-real zipalign result on both APKs**. Prior successful build/identity checks do not
-establish this new result. No current APK is declared aligned or broken here.
+mocked in portable tests; the hosted checkpoint above supplies the real zipalign
+result on both APKs. Earlier build/identity results alone did not establish it.
 These are static PT_LOAD/ZIP checks only: no RELRO audit, full ELF validity,
 runtime linking, 16 KiB device behavior, AAB/Play or signing qualification is
 claimed. Packaging/linker settings and the literal one-day upload authorization

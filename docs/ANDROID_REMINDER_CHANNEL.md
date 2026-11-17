@@ -1,12 +1,15 @@
 # Dormant Android reminder method-channel protocol
 
 This unit implements the Dart side of `com.newman.newmanapp/task_reminders_v1`.
-There is no native handler, app wiring, UI toggle, manifest permission, channel
-creation, alarm, receiver or device operation. Construction makes no platform
+A separate [dormant native foundation](ANDROID_REMINDER_NATIVE_FOUNDATION.md)
+now implements the handler and receiver classes, without app wiring, live UI
+toggle or manifest registration. This Dart protocol alone creates no channel,
+alarm or device operation. Construction makes no platform
 call. Missing/malformed native support reports unavailable and cannot authorize
-delivery. Native compilation and all Android notification delivery remain
-pending. This bridge complements ANDROID_REMINDER_BOUNDARY.md; it is not a
-qualified native adapter.
+delivery. Native compilation passed at the
+[exact build checkpoint](BUILDING_ANDROID_BETA.md#verified-feature-checkpoint--november-17-2026);
+all Android notification delivery qualification remains pending. This bridge
+complements ANDROID_REMINDER_BOUNDARY.md; it is not a qualified native adapter.
 
 All requests/replies carry integer `protocol: 1`. No request contains a raw task
 identifier, task title, note, checklist or Scripture text. Upserts contain only

@@ -1,11 +1,32 @@
-# Production release gaps — November 16 review
+# Production release gaps — November 17, 2026 checkpoint
 
 This matrix records repository evidence and owner decisions still needed. It is
 not a reduced definition of the approved full MVP. The recovered November 2 audit
 requires Android feature-level Guard, consent-based accountability, six English/
 Spanish editions and qualified offline audio. The precise October 9 contract and
-edition identifiers remain unrecovered (parent handoff); do not infer them from
+edition identifiers remain unrecovered; do not infer them from
 current beta code.
+
+## Small KJV beta evidence and remaining acceptance
+
+Checkpoint: `f674959276cbbe47d1cafaf8545f0384263d6c85`, tree
+`6904aa0e1b2a4e1d39d3371cd2470806715ee712`. Host verification includes 468
+passing Flutter tests, synthetic installed-KJV disk reopen, and Today, Plan,
+Reader and Guard recovery tests. These are host/synthetic results, not handset
+acceptance or a claim that the broader production MVP is complete.
+
+- [Android build evidence and limits](BUILDING_ANDROID_BETA.md#verified-feature-checkpoint--november-17-2026):
+  Debug ARM64 and unsigned release compilation, compiled manifest/containment,
+  static ELF LOAD and ZIP 16 KiB checks passed. No artifact was uploaded by that
+  run; no signed release, AAB, handset/runtime or live backend qualification.
+- [Windows evidence and limits](WINDOWS_DEBUG_STORAGE.md#verified-build-checkpoint--november-17-2026):
+  Debug/Release compilation and EXE identities passed; no launch or default
+  provider-resolved SQLite/preferences runtime qualification.
+- [Isolated owner-run smoke checklist](GALAXY_ISOLATED_SMOKE.md) remains the
+  separate device acceptance gate. CI does not mark its rows passed. Installed
+  KJV offline text and device audio are separate acceptance questions.
+
+## Broader production MVP blockers
 
 | Milestone | Current source evidence | Remaining gate / owner decision |
 | --- | --- | --- |

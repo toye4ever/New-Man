@@ -79,9 +79,19 @@ settings as a shortcut. Before any executable launch:
    and synthetic results. No personal file contents or global logs. On mismatch,
    close the binary, preserve files and report; do not repair/migrate/delete data.
 
-Every Windows compile/runtime row remains **NOT RUN**. Portable checks are the
-current evidence; real resource linking and provider behavior remain blockers to
-calling Windows developer installs qualified.
+## Verified build checkpoint — November 17, 2026
+
+At `f674959276cbbe47d1cafaf8545f0384263d6c85` (tree
+`6904aa0e1b2a4e1d39d3371cd2470806715ee712`),
+[Windows job 133920741765](https://github.com/toye4ever/New-Man/actions/runs/44048695966/job/133920741765)
+passed native Debug/Release compilation and compiled EXE identity checks.
+Application launch, default known-folder resolution, SQLite and preferences
+runtime isolation remain **NOT RUN**. The owner-run checklist above remains open.
+The portable persistence harnesses inject paths/preferences and cannot close
+these default-provider gates. APPDATA/LOCALAPPDATA tool-cache overrides do not
+establish what `SHGetKnownFolderPath` returns. Before a future startup gate,
+observe the disposable runner account's actual known-folder root and interactive
+desktop; fail safely if either cannot be established. No hosted startup was run.
 
 ## Feature-branch compiled identity gate
 
@@ -102,8 +112,8 @@ matching nonempty version fields. Missing/unexpected resources fail closed.
 Portable tests exercise synthetic JSON records and actual C preprocessing.
 PowerShell is unavailable on the local Linux executor: its source was reviewed,
 but no claim is made that its parser/FileVersionInfo path ran here. Workflow YAML,
-contexts and source restrictions were checked separately. The first published
-exact-head Windows run must establish PowerShell execution, resource compilation,
-EXE paths and metadata values. It still does not establish runtime provider paths
+contexts and source restrictions were checked separately. The exact-head job
+above establishes PowerShell execution, resource compilation,
+EXE paths and metadata values. It does not establish runtime provider paths
 or data isolation because it never launches the app. The owner-driven synthetic
 runtime checks above remain separate, unrun gates; do not test them on FRIDAY.
