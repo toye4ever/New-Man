@@ -6,6 +6,14 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
+import 'package:scripture_planner/src/screens/reader_screen.dart';
+import 'package:scripture_planner/src/features/word/bible/domain/scripture_reference.dart';
+import 'package:scripture_planner/src/features/word/bible/application/bible_reader_request.dart';
+import 'package:scripture_planner/src/features/word/bible/application/scripture_search.dart';
+import 'package:scripture_planner/src/features/word/audio/application/bible_audio_service.dart';
 import 'package:scripture_planner/src/controllers/app_controller.dart';
 import 'package:scripture_planner/src/core/database/app_database.dart';
 import 'package:scripture_planner/src/data/bible_books.dart';
@@ -19,6 +27,89 @@ import 'package:scripture_planner/src/features/word/translations/presentation/tr
 import 'package:scripture_planner/src/services/bible_version_repository.dart';
 
 void main() {
+  testWidgets(
+    'same Reader refreshes KJV search only after verified install',
+    (tester) async {
+      await _withReaderInstall(
+        tester,
+        rejectedFirst: true,
+        run: (repository, readerState) async {
+          await _readerSearch(tester, 'blessed');
+          expect(find.text('Matthew 5:3'), findsOneWidget);
+          await tester.pageBack();
+          await tester.pumpAndSettle();
+          await _readerSearch(tester, 'generated');
+          expect(find.textContaining('No Scripture matches.'), findsOneWidget);
+          await tester.pageBack();
+          await tester.pumpAndSettle();
+          final cachedReads =
+              (PathProviderPlatform.instance as _ReaderSupportPath).calls;
+          await _readerInstall(tester, repository, 'Download KJV');
+          expect(find.textContaining('could not be verified'), findsOneWidget);
+          await _readerSearch(tester, 'generated');
+          expect(find.textContaining('No Scripture matches.'), findsOneWidget);
+          await tester.pageBack();
+          await tester.pumpAndSettle();
+          await _readerSearch(tester, 'blessed');
+          expect(find.text('Matthew 5:3'), findsOneWidget);
+          await tester.pageBack();
+          await tester.pumpAndSettle();
+          expect(
+            (PathProviderPlatform.instance as _ReaderSupportPath).calls,
+            cachedReads,
+          );
+          await _readerInstall(tester, repository, 'Retry KJV');
+          expect(repository.successfulInstalls, 1);
+          expect(tester.state(find.byType(ReaderScreen)), same(readerState));
+          await _readerSearch(tester, 'generated');
+          expect(find.text('Genesis 1:1'), findsOneWidget);
+          expect(find.textContaining('No Scripture matches.'), findsNothing);
+          await tester.pageBack();
+          await tester.pumpAndSettle();
+          await _readerSearch(tester, 'generated verse');
+          expect(find.text('Genesis 1:1'), findsOneWidget);
+          await tester.pageBack();
+          await tester.pumpAndSettle();
+          await _readerSearch(tester, 'blessed');
+          expect(find.textContaining('No Scripture matches.'), findsOneWidget);
+        },
+      );
+    },
+    timeout: const Timeout(Duration(seconds: 45)),
+  );
+
+  testWidgets(
+    'successful KJV install preserves injected search and its cache',
+    (tester) async {
+      var loads = 0;
+      final injected = ScriptureSearch(() async {
+        loads++;
+        return const [
+          SearchVerse(
+            ScriptureReference(book: 'Genesis', startChapter: 1, startVerse: 1),
+            'injected sentinel',
+          ),
+        ];
+      });
+      await _withReaderInstall(
+        tester,
+        search: injected,
+        run: (repository, _) async {
+          await _readerSearch(tester, 'sentinel');
+          expect(find.text('Genesis 1:1'), findsOneWidget);
+          await tester.pageBack();
+          await tester.pumpAndSettle();
+          await _readerInstall(tester, repository, 'Download KJV');
+          await _readerSearch(tester, 'sentinel');
+          expect(find.text('Genesis 1:1'), findsOneWidget);
+          expect(loads, 1);
+        },
+      );
+    },
+    timeout: const Timeout(Duration(seconds: 45)),
+  );
+
+
   test(
     'download and canonical validation failures preserve existing KJV after reopen',
     () async {
@@ -455,4 +546,175 @@ class _EmptyVersionRepository extends BibleVersionRepository {
         installations: <BibleTranslation, TranslationInstallationState>{},
         onlineEnabled: <BibleTranslation>{},
       );
+}
+
+
+class _ReaderSupportPath extends PathProviderPlatform {
+  _ReaderSupportPath(this.path);
+  final String path;
+  int calls = 0;
+  @override
+  Future<String?> getApplicationSupportPath() async {
+    calls++;
+    return path;
+  }
+}
+
+class _ObservedInstallRepository extends DriftBibleVersionRepository {
+  _ObservedInstallRepository(
+    super.dao, {
+    required super.httpClient,
+    required super.kjvFileProvider,
+  });
+  int successfulInstalls = 0;
+  bool finished = false;
+  @override
+  Future<void> install(
+    BibleTranslation translation, {
+    void Function(TranslationInstallationState)? onStateChanged,
+  }) {
+    finished = false;
+    return super
+        .install(translation, onStateChanged: onStateChanged)
+        .then((_) {
+          successfulInstalls++;
+        })
+        .whenComplete(() => finished = true);
+  }
+}
+
+Future<void> _withReaderInstall(
+  WidgetTester tester, {
+  bool rejectedFirst = false,
+  ScriptureSearch? search,
+  required Future<void> Function(_ObservedInstallRepository, State) run,
+}) async {
+  final previousPath = PathProviderPlatform.instance;
+  final previousPrefs = SharedPreferencesAsyncPlatform.instance;
+  final directory = (await tester.runAsync(
+    () => Directory.systemTemp.createTemp('synthetic-reader-install-'),
+  ))!;
+  final db = AppDatabase(NativeDatabase.memory());
+  final repository = _ObservedInstallRepository(
+    WordTranslationStateDao(db),
+    httpClient: _BytesClient([
+      if (rejectedFirst) _vplZip('GEN 1:1 Synthetic incomplete'),
+      _completeVplZip(),
+    ]),
+    kjvFileProvider: () async => File('${directory.path}/bibles/kjv.json'),
+  );
+  PathProviderPlatform.instance = _ReaderSupportPath(directory.path);
+  SharedPreferencesAsyncPlatform.instance =
+      InMemorySharedPreferencesAsync.empty();
+  final controller = AppController(
+    repository: _EmptyPlanRepository(),
+    versionRepository: repository,
+  );
+  try {
+    await tester.runAsync(controller.load);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ReaderScreen(
+          controller: controller,
+          request: BibleReaderRequest.manual(
+            references: const [
+              ScriptureReference(book: 'Matthew', startChapter: 5),
+            ],
+          ),
+          audio: _SilentReaderAudio(),
+          search: search,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await run(repository, tester.state(find.byType(ReaderScreen)));
+  } finally {
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    try {
+      controller.dispose();
+      repository.dispose();
+      await tester.runAsync(() async {
+        await db.close();
+        await directory.delete(recursive: true);
+      });
+    } finally {
+      PathProviderPlatform.instance = previousPath;
+      SharedPreferencesAsyncPlatform.instance = previousPrefs;
+    }
+  }
+}
+
+Future<void> _readerSearch(WidgetTester tester, String query) async {
+  if (find.byType(TextField).evaluate().isEmpty) {
+    await tester.tap(find.byTooltip('Go to Scripture'));
+    await tester.pumpAndSettle();
+  }
+  await tester.enterText(find.byType(TextField).first, query);
+  await tester.testTextInput.receiveAction(TextInputAction.go);
+  await _settleReaderIO(tester);
+}
+
+Future<void> _settleReaderIO(WidgetTester tester) async {
+  await tester.pump(const Duration(milliseconds: 300));
+  for (var attempt = 0; attempt < 100; attempt++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+    await tester.pump(const Duration(milliseconds: 20));
+    if (find.byType(CircularProgressIndicator).evaluate().isEmpty) break;
+  }
+  expect(find.byType(CircularProgressIndicator), findsNothing);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _readerInstall(
+  WidgetTester tester,
+  _ObservedInstallRepository repository,
+  String label,
+) async {
+  // Hide the query field; it is not an installation cancellation control.
+  if (find.byType(TextField).evaluate().isNotEmpty) {
+    await tester.tap(find.byTooltip('Go to Scripture'));
+    await tester.pumpAndSettle();
+  }
+  await tester.tap(find.text(label).first);
+  for (var attempt = 0; attempt < 500 && !repository.finished; attempt++) {
+    await tester.pump(const Duration(milliseconds: 20));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+  }
+  expect(
+    repository.finished,
+    isTrue,
+    reason: 'Synthetic installation did not finish within the test bound',
+  );
+  await _settleReaderIO(tester);
+}
+
+class _SilentReaderAudio implements BibleAudioService {
+  @override
+  AudioPlaybackSnapshot get playback =>
+      const AudioPlaybackSnapshot(AudioPlaybackState.idle);
+  @override
+  bool get supportsPause => false;
+  @override
+  void addPlaybackListener(void Function() listener) {}
+  @override
+  void removePlaybackListener(void Function() listener) {}
+  @override
+  Future<List<TtsVoiceOption>> getVoices() async => [];
+  @override
+  Future<void> setVoice(TtsVoiceOption voice) async {}
+  @override
+  Future<void> setRate(double rate) async {}
+  @override
+  Future<void> speak(String text) async {}
+  @override
+  Future<void> pause() async {}
+  @override
+  Future<void> resume() async {}
+  @override
+  Future<void> stop() async {}
 }

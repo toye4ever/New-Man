@@ -74,7 +74,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Timer? _copiedTimer;
   Timer? _targetTimer;
   bool _autoFollowNarration = true;
-  late final ScriptureSearch _search;
+  late ScriptureSearch _search;
   int _searchGeneration = 0;
   bool _planDetached = false;
   bool _hideHeader = false;
@@ -1284,9 +1284,21 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Future<void> _installSelectedTranslation() async {
+    final installing = _translation;
     try {
-      await widget.controller.installTranslation(_translation);
-      if (mounted) setState(() => _passagesFuture = _loadCurrent());
+      await widget.controller.installTranslation(installing);
+      if (mounted) {
+        setState(() {
+          if (installing == BibleTranslation.kjv &&
+              widget.search == null &&
+              widget.controller.translationAvailability(installing).kind ==
+                  TranslationAvailabilityKind.installedOffline) {
+            // Replace both cached verse list and its memoized sample loader.
+            _search = ScriptureSearch(KjvScriptureService().searchVerses);
+          }
+          _passagesFuture = _loadCurrent();
+        });
+      }
     } on TranslationInstallationException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
