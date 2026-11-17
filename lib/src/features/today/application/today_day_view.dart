@@ -106,7 +106,9 @@ class TodayDayView {
         open
             .where(
               (t) =>
-                  t.timeBlock == null &&
+                  (t.timeBlock == null ||
+                      (t.dueDate == null &&
+                          localDay(t.timeBlock!.plannedDate).isBefore(day))) &&
                   (t.dueDate == null || localDay(t.dueDate!).isAfter(day)),
             )
             .toList()
