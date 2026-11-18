@@ -13,7 +13,12 @@ import '../../../features/word/plans/data/plan_repository.dart';
 import '../app_database.dart';
 import 'word_recovery_backup.dart';
 
-enum LegacyWordMigrationStatus { migrated, alreadyCompleted, failed }
+enum LegacyWordMigrationStatus {
+  migrated,
+  alreadyCompleted,
+  failed,
+  recoveryRequired,
+}
 
 class LegacyWordMigrationResult {
   const LegacyWordMigrationResult(this.status, {this.failureCode});
@@ -48,38 +53,27 @@ class LegacyWordImporter {
   final DateTime Function() _clock;
 
   Future<LegacyWordMigrationResult> migrate() async {
-    final existing = await (database.select(
-      database.localMigrationMetadata,
-    )..where((row) => row.migrationId.equals(migrationId))).getSingleOrNull();
-    if (existing != null && existing.state == 'completed') {
+    final existing = await _readMarker();
+    // Older builds could overwrite a completed marker after a failed check.
+    // Both representations may describe the authoritative Drift database.
+    if (existing != null &&
+        (existing.state == 'completed' ||
+            existing.failureCode == 'target_verification' ||
+            existing.completedAtUtcMicros != null)) {
       try {
         await _verifyCompletedTarget(existing);
         return const LegacyWordMigrationResult(
           LegacyWordMigrationStatus.alreadyCompleted,
         );
       } catch (_) {
-        await database
-            .into(database.localMigrationMetadata)
-            .insert(
-              LocalMigrationMetadataCompanion.insert(
-                migrationId: migrationId,
-                state: 'failed',
-                sourceFingerprint: existing.sourceFingerprint,
-                startedAtUtcMicros: existing.startedAtUtcMicros,
-                failureCode: const Value('target_verification'),
-                targetSchemaVersion: database.schemaVersion,
-              ),
-              mode: InsertMode.insertOrReplace,
-            );
-        await _recoveryBackup.writeFailure(
-          existing.sourceFingerprint,
-          'target_verification',
-        );
-        return const LegacyWordMigrationResult(
-          LegacyWordMigrationStatus.failed,
-          failureCode: 'target_verification',
-        );
+        return _recoveryRequired('target_verification');
       }
+    }
+    if (existing != null &&
+        (existing.state != 'failed' ||
+            (existing.failureCode != 'legacy_format' &&
+                existing.failureCode != 'migration_failure'))) {
+      return _recoveryRequired('authority_unproven');
     }
 
     final rawPlans = await _preferences.getString(
@@ -110,11 +104,10 @@ class LegacyWordImporter {
       _validate(projectedPlans);
       final started = _clock().toUtc().microsecondsSinceEpoch;
 
-      await database.transaction(() async {
+      final imported = await database.transaction(() async {
+        if (!await _initialTargetIsEmpty(existing)) return false;
         final planDao = WordPlanDao(database);
         final translationDao = WordTranslationStateDao(database);
-        await planDao.clearPlans();
-        await database.delete(database.wordTranslationStates).go();
         await planDao.insertProjected(projectedPlans);
         for (final state in projectedTranslations) {
           await translationDao.insertState(
@@ -142,25 +135,31 @@ class LegacyWordImporter {
               ),
               mode: InsertMode.insertOrReplace,
             );
+        return true;
       });
-      return const LegacyWordMigrationResult(
-        LegacyWordMigrationStatus.migrated,
-      );
+      return imported
+          ? const LegacyWordMigrationResult(LegacyWordMigrationStatus.migrated)
+          : _recoveryRequired('authority_unproven');
     } catch (error) {
       final failureCode = _failureCode(error);
-      await database
-          .into(database.localMigrationMetadata)
-          .insert(
-            LocalMigrationMetadataCompanion.insert(
-              migrationId: migrationId,
-              state: 'failed',
-              sourceFingerprint: fingerprint,
-              startedAtUtcMicros: _clock().toUtc().microsecondsSinceEpoch,
-              failureCode: Value(failureCode),
-              targetSchemaVersion: database.schemaVersion,
-            ),
-            mode: InsertMode.insertOrReplace,
-          );
+      final recorded = await database.transaction(() async {
+        if (!await _initialTargetIsEmpty(existing)) return false;
+        await database
+            .into(database.localMigrationMetadata)
+            .insert(
+              LocalMigrationMetadataCompanion.insert(
+                migrationId: migrationId,
+                state: 'failed',
+                sourceFingerprint: fingerprint,
+                startedAtUtcMicros: _clock().toUtc().microsecondsSinceEpoch,
+                failureCode: Value(failureCode),
+                targetSchemaVersion: database.schemaVersion,
+              ),
+              mode: InsertMode.insertOrReplace,
+            );
+        return true;
+      });
+      if (!recorded) return _recoveryRequired('authority_unproven');
       await _recoveryBackup.writeFailure(fingerprint, failureCode);
       return LegacyWordMigrationResult(
         LegacyWordMigrationStatus.failed,
@@ -168,6 +167,25 @@ class LegacyWordImporter {
       );
     }
   }
+
+  Future<LocalMigrationMetadataRecord?> _readMarker() => (database.select(
+    database.localMigrationMetadata,
+  )..where((row) => row.migrationId.equals(migrationId))).getSingleOrNull();
+
+  // Recheck during the write transaction. Initial import or retry may publish
+  // only into empty target tables with the same previously observed marker.
+  Future<bool> _initialTargetIsEmpty(
+    LocalMigrationMetadataRecord? expected,
+  ) async =>
+      await _readMarker() == expected &&
+      await _count(database.biblePlans) == 0 &&
+      await _count(database.wordTranslationStates) == 0;
+
+  static LegacyWordMigrationResult _recoveryRequired(String code) =>
+      LegacyWordMigrationResult(
+        LegacyWordMigrationStatus.recoveryRequired,
+        failureCode: code,
+      );
 
   List<ReadingPlan> _decodePlans(String? raw) {
     if (raw == null || raw.isEmpty) return <ReadingPlan>[];

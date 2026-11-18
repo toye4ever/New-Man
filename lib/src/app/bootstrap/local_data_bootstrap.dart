@@ -36,16 +36,32 @@ class LocalDataBootstrapResult {
   final TaskService taskService;
 }
 
+/// Startup cannot establish which storage is authoritative. No app controller
+/// or fallback repository is exposed in this case.
+class LocalDataRecoveryRequired extends StateError {
+  LocalDataRecoveryRequired() : super('Local Word data could not be verified.');
+}
+
+Future<Never> _stopForLocalRecovery(AppDatabase database) async {
+  try {
+    await database.close();
+  } catch (_) {
+    // Do not expose a partially initialized controller or file details.
+  }
+  throw LocalDataRecoveryRequired();
+}
+
 Future<LocalDataBootstrapResult> bootstrapLocalData() async {
   final database = AppDatabase.open();
   LegacyWordMigrationResult migration;
   try {
     migration = await LegacyWordImporter(database: database).migrate();
   } catch (_) {
-    migration = const LegacyWordMigrationResult(
-      LegacyWordMigrationStatus.failed,
-      failureCode: 'bootstrap_failure',
-    );
+    // We could not establish whether the migration had already completed.
+    return _stopForLocalRecovery(database);
+  }
+  if (migration.status == LegacyWordMigrationStatus.recoveryRequired) {
+    return _stopForLocalRecovery(database);
   }
 
   final driftIsAuthoritative = migration.driftIsAuthoritative;
