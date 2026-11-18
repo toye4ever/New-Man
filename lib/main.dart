@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'src/app/new_man_app.dart';
 import 'src/app/bootstrap/local_data_bootstrap.dart';
+import 'src/app/bootstrap/startup_app.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,12 +14,5 @@ Future<void> main() async {
     await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseKey);
   }
 
-  final localData = await bootstrapLocalData();
-
-  runApp(
-    NewManApp(
-      controller: localData.controller,
-      taskService: localData.taskService,
-    ),
-  );
+  runApp(await buildStartupApp(bootstrapLocalData));
 }
